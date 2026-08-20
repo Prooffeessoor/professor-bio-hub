@@ -1,5 +1,5 @@
 /* Professor Bio Hub – Service Worker */
-const CACHE_NAME = 'bio-hub-v1';
+const CACHE_NAME = 'bio-hub-v2';
 const PRECACHE = [
   './',
   './index.html',
@@ -34,7 +34,6 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
-
   event.respondWith(
     caches.match(req).then((cached) => {
       const fetched = fetch(req)
@@ -51,7 +50,5 @@ self.addEventListener('fetch', (event) => {
 });
 
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
