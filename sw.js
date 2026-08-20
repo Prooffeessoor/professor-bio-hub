@@ -3,6 +3,7 @@ const CACHE_NAME = 'bio-hub-v1';
 const PRECACHE = [
   './',
   './index.html',
+  './app.js',
   './manifest.webmanifest',
   './icon-192.svg',
   './icon-512.svg',
