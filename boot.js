@@ -1,6 +1,11 @@
-/* Load nav, search, efficiency modules after app.js */
+/* Load feature modules after app.js */
 (function () {
-  var scripts = ['./nav.js', './search.js', './efficiency.js'];
+  var scripts = [
+    './nav.js',
+    './search.js',
+    './efficiency.js',
+    './cache-update.js'
+  ];
   function load(src) {
     return new Promise(function (resolve) {
       var s = document.createElement('script');
@@ -11,7 +16,6 @@
       document.body.appendChild(s);
     });
   }
-  // Sequential so nav can override showPage after app init
   var i = 0;
   function next() {
     if (i >= scripts.length) return;
