@@ -1,7 +1,5 @@
-/* Professor Bio Hub – Service Worker
- * Caching + Background Sync + Install assets
- */
-const VERSION = 'v6';
+/* Professor Bio Hub SW v7 – caching + background sync */
+const VERSION = 'v7';
 const SHELL_CACHE = `bio-hub-shell-${VERSION}`;
 const DATA_CACHE = `bio-hub-data-${VERSION}`;
 const RUNTIME_CACHE = `bio-hub-runtime-${VERSION}`;
@@ -9,13 +7,15 @@ const SYNC_TAG = 'bio-hub-sync';
 
 const SHELL_ASSETS = [
   './', './index.html', './app.js', './sync.js', './install.js',
+  './logo-inject.js', './boot.js', './nav.js', './search.js', './efficiency.js',
   './manifest.webmanifest', './icon-192.svg', './icon-512.svg'
 ];
 
 const DATA_ASSETS = [
   './data/chapters.js', './data/flashcards.js', './data/quizzes.js',
   './data/practicals.js', './data/waecQuestions.js', './data/waecTheoryQuestions.js',
-  './data/waecPracticalQuestions.js', './data/jambQuestions.js'
+  './data/waecPracticalQuestions.js', './data/jambQuestions.js',
+  './data/extraTopics.js'
 ];
 
 function isNavigationRequest(req) {
@@ -32,9 +32,9 @@ function isDataAsset(url) {
 function isShellAsset(url) {
   if (url.origin !== self.location.origin) return false;
   const p = url.pathname;
-  return p.endsWith('/app.js') || p.endsWith('/sync.js') || p.endsWith('/install.js') ||
-    p.endsWith('/manifest.webmanifest') || p.endsWith('/icon-192.svg') ||
-    p.endsWith('/icon-512.svg') || p.endsWith('/sw.js');
+  return /\/(app|sync|install|logo-inject|boot|nav|search|efficiency|sw)\.js$/.test(p) ||
+    p.endsWith('/manifest.webmanifest') ||
+    p.endsWith('/icon-192.svg') || p.endsWith('/icon-512.svg');
 }
 
 function isThirdPartyCacheable(url) {
@@ -82,9 +82,7 @@ async function staleWhileRevalidate(request, cacheName) {
 
 async function notifyClientsFlush() {
   const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-  for (const client of clientsList) {
-    client.postMessage({ type: 'FLUSH_SYNC_QUEUE' });
-  }
+  for (const client of clientsList) client.postMessage({ type: 'FLUSH_SYNC_QUEUE' });
   return clientsList.length;
 }
 
@@ -93,9 +91,7 @@ self.addEventListener('install', (event) => {
     const shell = await caches.open(SHELL_CACHE);
     await shell.addAll(SHELL_ASSETS);
     const data = await caches.open(DATA_CACHE);
-    await Promise.all(
-      DATA_ASSETS.map((url) => data.add(url).catch((e) => console.warn('Precache skip', url, e)))
-    );
+    await Promise.all(DATA_ASSETS.map((url) => data.add(url).catch(() => {})));
     await self.skipWaiting();
   })());
 });
@@ -137,9 +133,7 @@ self.addEventListener('fetch', (event) => {
 });
 
 self.addEventListener('sync', (event) => {
-  if (event.tag === SYNC_TAG) {
-    event.waitUntil(notifyClientsFlush());
-  }
+  if (event.tag === SYNC_TAG) event.waitUntil(notifyClientsFlush());
 });
 
 self.addEventListener('message', (event) => {
