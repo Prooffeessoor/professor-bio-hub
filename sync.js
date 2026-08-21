@@ -1,14 +1,20 @@
 /* Professor Bio Hub – Background Sync client
- * Queue + flush with error handling and exponential backoff.
+ * Queue + flush with error handling and jittered exponential backoff.
+ *
+ * Jitter strategies (AWS Architecture Blog style):
+ *  - full:         random(0, min(cap, base * 2^attempt))
+ *  - equal:        half + random(0, half)  where half = temp/2
+ *  - decorrelated: min(cap, random(base, prevDelay * 3))
  */
 (function () {
   var SYNC_QUEUE_KEY = 'profBioSyncQueue';
   var SYNC_ERROR_KEY = 'profBioSyncLastError';
   var SYNC_TAG = 'bio-hub-sync';
   var MAX_ATTEMPTS = 5;
-  /** Base delay (ms) for exponential backoff: 1s, 2s, 4s, 8s, 16s */
   var BACKOFF_BASE_MS = 1000;
   var BACKOFF_MAX_MS = 60000;
+  /** @type {'full'|'equal'|'decorrelated'} */
+  var JITTER_STRATEGY = 'full';
   var flushing = false;
   var backoffTimer = null;
 
@@ -58,30 +64,79 @@
     }
   }
 
-  /**
-   * Exponential backoff delay for attempt N (0-based after a failure).
-   * attempt 1 → 1s, 2 → 2s, 3 → 4s, 4 → 8s, 5 → 16s (capped).
-   * @param {number} attempts
-   * @return {number} milliseconds
-   */
-  function backoffDelay(attempts) {
-    var exp = Math.max(0, (attempts || 1) - 1);
-    var ms = BACKOFF_BASE_MS * Math.pow(2, exp);
-    // Full jitter: random between 50% and 100% of delay
-    var jittered = ms * (0.5 + Math.random() * 0.5);
-    return Math.min(BACKOFF_MAX_MS, Math.round(jittered));
+  function randomBetween(min, max) {
+    if (max <= min) return min;
+    return min + Math.random() * (max - min);
   }
 
   /**
-   * Earliest time any queue item is allowed to retry.
-   * @param {Array} queue
-   * @return {number} timestamp ms, or 0 if ready now
+   * Ceiling for attempt N (1-based after failure): min(cap, base * 2^(attempts-1))
+   * @param {number} attempts
+   * @return {number}
    */
+  function expCeiling(attempts) {
+    var exp = Math.max(0, (attempts || 1) - 1);
+    return Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * Math.pow(2, exp));
+  }
+
+  /**
+   * Full Jitter: sleep = random(0, min(cap, base * 2^attempt))
+   * Spreads load evenly; best for high contention.
+   * @param {number} attempts
+   * @return {number} ms
+   */
+  function fullJitter(attempts) {
+    var ceil = expCeiling(attempts);
+    return Math.round(randomBetween(0, ceil));
+  }
+
+  /**
+   * Equal Jitter: sleep = temp/2 + random(0, temp/2)
+   * Guarantees at least half the exponential delay.
+   * @param {number} attempts
+   * @return {number} ms
+   */
+  function equalJitter(attempts) {
+    var temp = expCeiling(attempts);
+    var half = temp / 2;
+    return Math.round(half + randomBetween(0, half));
+  }
+
+  /**
+   * Decorrelated Jitter: sleep = min(cap, random(base, prevDelay * 3))
+   * Uses previous delay so consecutive waits are less synchronized.
+   * @param {number} attempts
+   * @param {number} [prevDelayMs]
+   * @return {number} ms
+   */
+  function decorrelatedJitter(attempts, prevDelayMs) {
+    var prev = prevDelayMs > 0 ? prevDelayMs : BACKOFF_BASE_MS;
+    var upper = Math.max(BACKOFF_BASE_MS, prev * 3);
+    return Math.round(Math.min(BACKOFF_MAX_MS, randomBetween(BACKOFF_BASE_MS, upper)));
+  }
+
+  /**
+   * Compute backoff delay using the active jitter strategy.
+   * @param {number} attempts
+   * @param {number} [prevDelayMs] used by decorrelated
+   * @return {number} ms
+   */
+  function backoffDelay(attempts, prevDelayMs) {
+    switch (JITTER_STRATEGY) {
+      case 'equal':
+        return equalJitter(attempts);
+      case 'decorrelated':
+        return decorrelatedJitter(attempts, prevDelayMs);
+      case 'full':
+      default:
+        return fullJitter(attempts);
+    }
+  }
+
   function nextRetryAt(queue) {
     var soonest = Infinity;
     for (var i = 0; i < queue.length; i++) {
-      var item = queue[i];
-      var waitUntil = item.retryAfter || 0;
+      var waitUntil = queue[i].retryAfter || 0;
       if (waitUntil < soonest) soonest = waitUntil;
     }
     return soonest === Infinity ? 0 : soonest;
@@ -110,7 +165,8 @@
         queuedAt: Date.now(),
         attempts: 0,
         lastError: null,
-        retryAfter: 0
+        retryAfter: 0,
+        lastDelayMs: 0
       });
       setSyncQueue(queue);
       requestBackgroundSync();
@@ -140,17 +196,13 @@
     return false;
   }
 
-  /**
-   * Schedule a delayed flush using exponential backoff.
-   * @param {number} delayMs
-   */
   function scheduleRetry(delayMs) {
     if (backoffTimer) clearTimeout(backoffTimer);
     if (delayMs <= 0) {
       flushSyncQueue();
       return;
     }
-    console.log('[Sync] Retry scheduled in', delayMs, 'ms');
+    console.log('[Sync] Retry scheduled in', delayMs, 'ms (' + JITTER_STRATEGY + ' jitter)');
     backoffTimer = setTimeout(function () {
       backoffTimer = null;
       flushSyncQueue();
@@ -212,8 +264,7 @@
   }
 
   /**
-   * Flush queue with exponential backoff on failures.
-   * @param {{force?: boolean}} [opts] force=true ignores retryAfter
+   * @param {{force?: boolean}} [opts]
    * @return {Promise<{flushed:number, failed:number, remaining:number, deferred:number}>}
    */
   async function flushSyncQueue(opts) {
@@ -247,7 +298,6 @@
       for (var i = 0; i < queue.length; i++) {
         var item = queue[i];
 
-        // Honor backoff window unless forced (e.g. user tapped badge)
         if (!opts.force && item.retryAfter && item.retryAfter > now) {
           remaining.push(item);
           result.deferred++;
@@ -281,12 +331,13 @@
           }
 
           if (retry) {
-            var delayMs = backoffDelay(item.attempts);
+            var delayMs = backoffDelay(item.attempts, item.lastDelayMs || 0);
+            item.lastDelayMs = delayMs;
             item.retryAfter = Date.now() + delayMs;
             remaining.push(item);
             if (item.retryAfter < soonestRetry) soonestRetry = item.retryAfter;
             console.log(
-              '[Sync] Backoff for', item.type,
+              '[Sync] ' + JITTER_STRATEGY + ' jitter for', item.type,
               '→ retry in', delayMs, 'ms (attempt', item.attempts + ')'
             );
           } else {
@@ -317,7 +368,6 @@
             true
           );
         }
-        // Schedule next attempt at earliest backoff
         if (soonestRetry !== Infinity) {
           scheduleRetry(Math.max(0, soonestRetry - Date.now()));
         }
@@ -327,7 +377,7 @@
       recordError('flush', fatal);
       console.error('[Sync] Fatal flush error', fatal);
       showSyncToast('Sync failed — will retry', true);
-      scheduleRetry(backoffDelay(1));
+      scheduleRetry(backoffDelay(1, 0));
       try {
         requestBackgroundSync();
       } catch (e) {}
@@ -355,7 +405,6 @@
         'box-shadow:0 2px 10px rgba(0,0,0,0.2);cursor:pointer;';
       el.title = 'Tap to retry sync now';
       el.addEventListener('click', function () {
-        // Force ignores backoff window
         flushSyncQueue({ force: true });
       });
       document.body.appendChild(el);
@@ -448,7 +497,6 @@
 
     window.addEventListener('online', function () {
       console.log('[Sync] Online — flushing queue');
-      // Online event: force attempt (user just regained connectivity)
       flushSyncQueue({ force: true }).catch(function (err) {
         recordError('online-flush', err);
       });
@@ -496,6 +544,19 @@
     request: requestBackgroundSync,
     queue: getSyncQueue,
     lastError: getLastError,
-    backoffDelay: backoffDelay
+    backoffDelay: backoffDelay,
+    fullJitter: fullJitter,
+    equalJitter: equalJitter,
+    decorrelatedJitter: decorrelatedJitter,
+    /** @param {'full'|'equal'|'decorrelated'} strategy */
+    setJitterStrategy: function (strategy) {
+      if (strategy === 'full' || strategy === 'equal' || strategy === 'decorrelated') {
+        JITTER_STRATEGY = strategy;
+        console.log('[Sync] Jitter strategy →', strategy);
+      }
+    },
+    getJitterStrategy: function () {
+      return JITTER_STRATEGY;
+    }
   };
 })();
