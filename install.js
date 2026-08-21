@@ -41,7 +41,6 @@
 
   async function promptInstall() {
     if (!deferredPrompt) {
-      // iOS / browsers without beforeinstallprompt
       showIosHint();
       return;
     }
@@ -59,19 +58,18 @@
     if (!isIOS || isStandalone()) return;
     var el = getBanner();
     if (!el) return;
-    var text = el.querySelector('.install-text');
-    if (text) {
-      text.innerHTML = 'Install: tap <strong>Share</strong> then <strong>Add to Home Screen</strong>';
-    }
+    var title = el.querySelector('.install-title');
+    var sub = el.querySelector('.install-sub');
+    if (title) title.textContent = 'Install on iPhone';
+    if (sub) sub.innerHTML = 'Tap <strong>Share</strong> \u2192 <strong>Add to Home Screen</strong>';
     var btn = el.querySelector('#installBtn');
-    if (btn) btn.style.display = 'none';
+    if (btn) { btn.textContent = 'Got it'; btn.onclick = function () { dismiss(); }; }
     el.classList.add('show');
   }
 
   window.addEventListener('beforeinstallprompt', function (e) {
     e.preventDefault();
     deferredPrompt = e;
-    // Delay so it doesn't fight the first paint / offline banner
     setTimeout(showBanner, 2500);
   });
 
@@ -88,7 +86,6 @@
     if (installBtn) installBtn.addEventListener('click', promptInstall);
     if (dismissBtn) dismissBtn.addEventListener('click', dismiss);
 
-    // iOS: show Share hint after a delay if not installed
     var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     if (isIOS && !isStandalone() && !wasDismissedRecently()) {
