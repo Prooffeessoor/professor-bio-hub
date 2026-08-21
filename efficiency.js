@@ -1,4 +1,4 @@
-/* PWA efficiency: idle work, extra topics + exam banks */
+/* PWA efficiency: idle work, extra topics + large exam banks */
 (function () {
   function loadScript(src) {
     return new Promise(function (resolve) {
@@ -23,19 +23,10 @@
       else Object.assign(quizzes, window.BIO_DATA.quizzes);
     }
     if (window.BIO_DATA.waecQuestions) {
-      if (typeof waecQuestions === 'undefined' || !waecQuestions) window.waecQuestions = window.BIO_DATA.waecQuestions;
-      else if (Array.isArray(waecQuestions) && waecQuestions !== window.BIO_DATA.waecQuestions) {
-        // prefer merged BIO_DATA list if longer
-        if (window.BIO_DATA.waecQuestions.length > waecQuestions.length) {
-          window.waecQuestions = window.BIO_DATA.waecQuestions;
-        }
-      }
+      window.waecQuestions = window.BIO_DATA.waecQuestions;
     }
     if (window.BIO_DATA.jambQuestions) {
-      if (typeof jambQuestions === 'undefined' || !jambQuestions) window.jambQuestions = window.BIO_DATA.jambQuestions;
-      else if (Array.isArray(jambQuestions) && window.BIO_DATA.jambQuestions.length > jambQuestions.length) {
-        window.jambQuestions = window.BIO_DATA.jambQuestions;
-      }
+      window.jambQuestions = window.BIO_DATA.jambQuestions;
     }
   }
 
@@ -54,6 +45,14 @@
     if (window.__examExtraLoaded) return Promise.resolve();
     return loadScript('./data/examExtra.js').then(function () {
       window.__examExtraLoaded = true;
+      syncGlobalsFromBioData();
+    });
+  }
+
+  function loadExamBank() {
+    if (window.__examBankLoaded) return Promise.resolve();
+    return loadScript('./data/examBank.js').then(function () {
+      window.__examBankLoaded = true;
       syncGlobalsFromBioData();
     });
   }
@@ -104,14 +103,15 @@
   }
 
   function idle(fn) {
-    if ('requestIdleCallback' in window) requestIdleCallback(fn, { timeout: 3000 });
-    else setTimeout(fn, 200);
+    if ('requestIdleCallback' in window) requestIdleCallback(fn, { timeout: 4000 });
+    else setTimeout(fn, 300);
   }
 
   function initEfficiency() {
     idle(function () {
       loadExtraTopics()
         .then(loadExamExtra)
+        .then(loadExamBank)
         .then(enrichTopicSelects);
     });
   }
@@ -124,6 +124,7 @@
 
   window.BioHubEfficiency = {
     loadExtraTopics: loadExtraTopics,
-    loadExamExtra: loadExamExtra
+    loadExamExtra: loadExamExtra,
+    loadExamBank: loadExamBank
   };
 })();
