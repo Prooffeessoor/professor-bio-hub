@@ -1,5 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="80" fill="#0f766e"/>
-  <rect x="64" y="64" width="384" height="384" rx="64" fill="#14b8a6"/>
-  <text x="256" y="320" text-anchor="middle" font-family="Arial,sans-serif" font-size="200" font-weight="bold" fill="white">B</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="#0f766e"/>
+  <g fill="#ffffff" transform="translate(256,248)">
+    <ellipse cx="0" cy="-118" rx="72" ry="12"/>
+    <path d="M-58,-118 L-48,-195 Q0,-215 48,-195 L58,-118 Z"/>
+    <rect x="-68" y="-128" width="136" height="18" rx="4"/>
+    <rect x="-52" y="-78" width="42" height="28" rx="4" fill="none" stroke="#fff" stroke-width="6"/>
+    <rect x="10" y="-78" width="42" height="28" rx="4" fill="none" stroke="#fff" stroke-width="6"/>
+    <path d="M-10,-64 H10" stroke="#fff" stroke-width="5" fill="none"/>
+    <path d="M-52,-64 H-62" stroke="#fff" stroke-width="5" fill="none"/>
+    <path d="M52,-64 H62" stroke="#fff" stroke-width="5" fill="none"/>
+    <path d="M0,-28 Q-28,-42 -48,-22 Q-28,-8 0,-18 Q28,-8 48,-22 Q28,-42 0,-28 Z"/>
+    <path d="M-38,-18 Q-48,20 -30,70 Q-10,95 0,100 Q10,95 30,70 Q48,20 38,-18 Q20,5 0,8 Q-20,5 -38,-18 Z"/>
+    <path d="M-8,88 L-48,72 L-48,108 Z"/>
+    <path d="M8,88 L48,72 L48,108 Z"/>
+    <rect x="-10" y="82" width="20" height="16" rx="3"/>
+    <path d="M-90,115 Q-70,95 -20,100 L-12,200 L-100,200 Q-110,160 -90,115 Z"/>
+    <path d="M90,115 Q70,95 20,100 L12,200 L100,200 Q110,160 90,115 Z"/>
+    <path d="M-18,100 L0,200 L18,100 Q8,108 0,110 Q-8,108 -18,100 Z" opacity="0.35"/>
+  </g>
 </svg>

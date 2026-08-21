@@ -1,12 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
-  <rect width="192" height="192" rx="36" fill="#0f766e"/>
-  <g fill="#ffffff" transform="translate(96,92) scale(0.36)">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 360" width="320" height="360">
+  <rect width="320" height="360" fill="#0f766e"/>
+  <g fill="#ffffff" transform="translate(160,150)">
     <ellipse cx="0" cy="-118" rx="72" ry="12"/>
     <path d="M-58,-118 L-48,-195 Q0,-215 48,-195 L58,-118 Z"/>
     <rect x="-68" y="-128" width="136" height="18" rx="4"/>
-    <rect x="-52" y="-78" width="42" height="28" rx="4" fill="none" stroke="#fff" stroke-width="8"/>
-    <rect x="10" y="-78" width="42" height="28" rx="4" fill="none" stroke="#fff" stroke-width="8"/>
-    <path d="M-10,-64 H10" stroke="#fff" stroke-width="6" fill="none"/>
+    <rect x="-52" y="-78" width="42" height="28" rx="4" fill="none" stroke="#fff" stroke-width="6"/>
+    <rect x="10" y="-78" width="42" height="28" rx="4" fill="none" stroke="#fff" stroke-width="6"/>
+    <path d="M-10,-64 H10" stroke="#fff" stroke-width="5" fill="none"/>
     <path d="M0,-28 Q-28,-42 -48,-22 Q-28,-8 0,-18 Q28,-8 48,-22 Q28,-42 0,-28 Z"/>
     <path d="M-38,-18 Q-48,20 -30,70 Q-10,95 0,100 Q10,95 30,70 Q48,20 38,-18 Q20,5 0,8 Q-20,5 -38,-18 Z"/>
     <path d="M-8,88 L-48,72 L-48,108 Z"/>
@@ -15,4 +15,5 @@
     <path d="M-90,115 Q-70,95 -20,100 L-12,200 L-100,200 Q-110,160 -90,115 Z"/>
     <path d="M90,115 Q70,95 20,100 L12,200 L100,200 Q110,160 90,115 Z"/>
   </g>
+  <text x="160" y="330" text-anchor="middle" fill="#ffffff" font-family="Georgia, serif" font-size="28" font-weight="700" letter-spacing="3">PROFESSOR</text>
 </svg>
