@@ -1,12 +1,16 @@
 /* Professor Bio Hub – Background Sync client
- * Queue + flush with structured error handling for failures.
+ * Queue + flush with error handling and exponential backoff.
  */
 (function () {
   var SYNC_QUEUE_KEY = 'profBioSyncQueue';
   var SYNC_ERROR_KEY = 'profBioSyncLastError';
   var SYNC_TAG = 'bio-hub-sync';
   var MAX_ATTEMPTS = 5;
+  /** Base delay (ms) for exponential backoff: 1s, 2s, 4s, 8s, 16s */
+  var BACKOFF_BASE_MS = 1000;
+  var BACKOFF_MAX_MS = 60000;
   var flushing = false;
+  var backoffTimer = null;
 
   function getSyncQueue() {
     try {
@@ -54,20 +58,45 @@
     }
   }
 
-  /** Classify failures for retry vs permanent drop */
+  /**
+   * Exponential backoff delay for attempt N (0-based after a failure).
+   * attempt 1 → 1s, 2 → 2s, 3 → 4s, 4 → 8s, 5 → 16s (capped).
+   * @param {number} attempts
+   * @return {number} milliseconds
+   */
+  function backoffDelay(attempts) {
+    var exp = Math.max(0, (attempts || 1) - 1);
+    var ms = BACKOFF_BASE_MS * Math.pow(2, exp);
+    // Full jitter: random between 50% and 100% of delay
+    var jittered = ms * (0.5 + Math.random() * 0.5);
+    return Math.min(BACKOFF_MAX_MS, Math.round(jittered));
+  }
+
+  /**
+   * Earliest time any queue item is allowed to retry.
+   * @param {Array} queue
+   * @return {number} timestamp ms, or 0 if ready now
+   */
+  function nextRetryAt(queue) {
+    var soonest = Infinity;
+    for (var i = 0; i < queue.length; i++) {
+      var item = queue[i];
+      var waitUntil = item.retryAfter || 0;
+      if (waitUntil < soonest) soonest = waitUntil;
+    }
+    return soonest === Infinity ? 0 : soonest;
+  }
+
   function isRetryableError(err) {
     if (!err) return true;
     var name = err.name || '';
     var msg = (err.message || '').toLowerCase();
-    // Network / transient
     if (name === 'TypeError' && msg.indexOf('fetch') !== -1) return true;
     if (name === 'NetworkError' || name === 'AbortError' || name === 'TimeoutError') return true;
     if (msg.indexOf('network') !== -1 || msg.indexOf('offline') !== -1) return true;
     if (msg.indexOf('unavailable') !== -1 || msg.indexOf('deadline') !== -1) return true;
-    // Firebase auth not ready yet — retry
-    if (msg.indexOf('permission') !== -1) return true;
-    if (msg.indexOf('unauthenticated') !== -1) return true;
-    return true; // default: retry until MAX_ATTEMPTS
+    if (msg.indexOf('permission') !== -1 || msg.indexOf('unauthenticated') !== -1) return true;
+    return true;
   }
 
   function enqueueSync(type, payload) {
@@ -80,7 +109,8 @@
         payload: payload,
         queuedAt: Date.now(),
         attempts: 0,
-        lastError: null
+        lastError: null,
+        retryAfter: 0
       });
       setSyncQueue(queue);
       requestBackgroundSync();
@@ -110,6 +140,23 @@
     return false;
   }
 
+  /**
+   * Schedule a delayed flush using exponential backoff.
+   * @param {number} delayMs
+   */
+  function scheduleRetry(delayMs) {
+    if (backoffTimer) clearTimeout(backoffTimer);
+    if (delayMs <= 0) {
+      flushSyncQueue();
+      return;
+    }
+    console.log('[Sync] Retry scheduled in', delayMs, 'ms');
+    backoffTimer = setTimeout(function () {
+      backoffTimer = null;
+      flushSyncQueue();
+    }, delayMs);
+  }
+
   async function persistItem(item) {
     if (item.type === 'progress') {
       try {
@@ -129,8 +176,6 @@
             { merge: true }
           );
         } catch (cloudErr) {
-          // Local write succeeded; cloud failed — still treat as partial success
-          // but rethrow so we retry cloud later
           cloudErr._localOk = true;
           throw cloudErr;
         }
@@ -167,11 +212,13 @@
   }
 
   /**
-   * Flush queue with per-item error handling.
-   * @return {Promise<{flushed:number, failed:number, remaining:number}>}
+   * Flush queue with exponential backoff on failures.
+   * @param {{force?: boolean}} [opts] force=true ignores retryAfter
+   * @return {Promise<{flushed:number, failed:number, remaining:number, deferred:number}>}
    */
-  async function flushSyncQueue() {
-    var result = { flushed: 0, failed: 0, remaining: 0 };
+  async function flushSyncQueue(opts) {
+    opts = opts || {};
+    var result = { flushed: 0, failed: 0, remaining: 0, deferred: 0 };
 
     if (flushing) {
       console.log('[Sync] Flush already in progress');
@@ -191,12 +238,23 @@
       return result;
     }
 
+    var now = Date.now();
     flushing = true;
     var remaining = [];
+    var soonestRetry = Infinity;
 
     try {
       for (var i = 0; i < queue.length; i++) {
         var item = queue[i];
+
+        // Honor backoff window unless forced (e.g. user tapped badge)
+        if (!opts.force && item.retryAfter && item.retryAfter > now) {
+          remaining.push(item);
+          result.deferred++;
+          if (item.retryAfter < soonestRetry) soonestRetry = item.retryAfter;
+          continue;
+        }
+
         try {
           await persistItem(item);
           result.flushed++;
@@ -205,13 +263,12 @@
           result.failed++;
           item.attempts = (item.attempts || 0) + 1;
           item.lastError = (err && err.message) || String(err);
-          item.lastAttemptAt = Date.now();
+          item.lastAttemptAt = now;
           recordError(item.type, err);
 
           var retry = isRetryableError(err) && item.attempts < MAX_ATTEMPTS;
 
           if (err && err._localOk) {
-            // Local data is safe; keep retrying cloud only
             console.warn(
               '[Sync] Cloud sync failed for', item.type,
               '(local OK). attempt', item.attempts
@@ -224,7 +281,14 @@
           }
 
           if (retry) {
+            var delayMs = backoffDelay(item.attempts);
+            item.retryAfter = Date.now() + delayMs;
             remaining.push(item);
+            if (item.retryAfter < soonestRetry) soonestRetry = item.retryAfter;
+            console.log(
+              '[Sync] Backoff for', item.type,
+              '→ retry in', delayMs, 'ms (attempt', item.attempts + ')'
+            );
           } else {
             console.error(
               '[Sync] Dropping', item.type,
@@ -246,18 +310,24 @@
             ? 'Synced offline change'
             : 'Synced ' + result.flushed + ' offline changes'
         );
-      } else if (result.failed && result.remaining) {
-        showSyncToast(
-          result.remaining + ' change(s) will retry later',
-          true
-        );
+      } else if (result.remaining) {
+        if (result.failed) {
+          showSyncToast(
+            result.remaining + ' change(s) will retry later',
+            true
+          );
+        }
+        // Schedule next attempt at earliest backoff
+        if (soonestRetry !== Infinity) {
+          scheduleRetry(Math.max(0, soonestRetry - Date.now()));
+        }
         requestBackgroundSync();
       }
     } catch (fatal) {
-      // Unexpected top-level failure — preserve full queue
       recordError('flush', fatal);
       console.error('[Sync] Fatal flush error', fatal);
       showSyncToast('Sync failed — will retry', true);
+      scheduleRetry(backoffDelay(1));
       try {
         requestBackgroundSync();
       } catch (e) {}
@@ -283,9 +353,10 @@
         'position:fixed;top:72px;right:12px;z-index:1100;background:#0f766e;color:#fff;' +
         'font-size:0.75rem;font-weight:600;padding:0.4rem 0.75rem;border-radius:99px;' +
         'box-shadow:0 2px 10px rgba(0,0,0,0.2);cursor:pointer;';
-      el.title = 'Tap to retry sync';
+      el.title = 'Tap to retry sync now';
       el.addEventListener('click', function () {
-        flushSyncQueue();
+        // Force ignores backoff window
+        flushSyncQueue({ force: true });
       });
       document.body.appendChild(el);
     }
@@ -377,7 +448,8 @@
 
     window.addEventListener('online', function () {
       console.log('[Sync] Online — flushing queue');
-      flushSyncQueue().catch(function (err) {
+      // Online event: force attempt (user just regained connectivity)
+      flushSyncQueue({ force: true }).catch(function (err) {
         recordError('online-flush', err);
       });
       requestBackgroundSync();
@@ -398,9 +470,16 @@
     }
 
     if (navigator.onLine && getSyncQueue().length) {
-      flushSyncQueue().catch(function (err) {
-        recordError('boot-flush', err);
-      });
+      var queue = getSyncQueue();
+      var when = nextRetryAt(queue);
+      var delay = Math.max(0, when - Date.now());
+      if (delay > 0) {
+        scheduleRetry(delay);
+      } else {
+        flushSyncQueue().catch(function (err) {
+          recordError('boot-flush', err);
+        });
+      }
     }
     updateSyncBadge();
   }
@@ -416,6 +495,7 @@
     flush: flushSyncQueue,
     request: requestBackgroundSync,
     queue: getSyncQueue,
-    lastError: getLastError
+    lastError: getLastError,
+    backoffDelay: backoffDelay
   };
 })();
