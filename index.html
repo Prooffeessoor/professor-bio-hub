@@ -68,7 +68,6 @@
     .btn-danger { background: #fee2e2; color: #991b1b; }
     .back-btn { display: inline-flex; align-items: center; gap: 0.4rem; background: none; border: none; color: var(--primary); font-weight: 600; cursor: pointer; margin-bottom: 1rem; }
     .option { display: flex; align-items: flex-start; gap: 0.85rem; padding: 0.9rem 1rem; border: 2px solid var(--border); border-radius: 12px; margin-bottom: 0.65rem; cursor: pointer; }
-    .option.selected { border-color: var(--primary); background: #ccfbf1; }
     .option.correct { border-color: var(--success); background: #d1fae5; }
     .option.wrong { border-color: var(--danger); background: #fee2e2; }
     .option-letter { width: 28px; height: 28px; border-radius: 8px; background: #e0f2f1; color: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
@@ -98,6 +97,11 @@
     .sw-banner.show { transform: translateY(0); }
     .sw-banner.offline { background: #78350f; color: #fef3c7; }
     .sw-banner.update { background: var(--primary); color: #fff; }
+    .sw-banner.install { background: linear-gradient(135deg, #0f766e, #0d9488); color: #fff; bottom: 64px; }
+    .sw-banner.install .install-actions { display: flex; gap: 0.5rem; align-items: center; flex-shrink: 0; }
+    .sw-banner.install button { border: none; border-radius: 8px; padding: 0.4rem 0.75rem; font-weight: 700; cursor: pointer; font-family: inherit; font-size: 0.8rem; }
+    .sw-banner.install #installBtn { background: #fff; color: #0f766e; }
+    .sw-banner.install #installDismissBtn { background: rgba(255,255,255,0.2); color: #fff; }
     .empty-state { text-align: center; padding: 2.5rem 1.5rem; color: var(--text-muted); }
     .score-value { font-size: 3.5rem; font-weight: 800; color: var(--primary); }
     .streak-badge { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; font-weight: 700; font-size: 0.85rem; padding: 0.35rem 0.75rem; border-radius: 99px; }
@@ -205,9 +209,9 @@
     <section class="page" id="page-waec">
       <h2 class="section-title">📝 WAEC Practice</h2>
       <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;"><button class="btn btn-primary btn-sm" id="waecModeMsq">📋 MSQ</button><button class="btn btn-secondary btn-sm" id="waecModeTheory">✍️ Theory</button><button class="btn btn-secondary btn-sm" id="waecModePractical">🧪 Practical</button></div>
-      <div id="waecTopicPicker"><h3 id="waecPickerTitle">WAEC MSQ by Topic</h3><p id="waecPickerDesc" style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.85rem;">Select a topic.</p><div class="feature-grid" style="grid-template-columns:1fr 1fr;" id="waecTopicGrid"></div></div>
+      <div id="waecTopicPicker"><div class="feature-grid" style="grid-template-columns:1fr 1fr;" id="waecTopicGrid"></div></div>
       <div id="waecQuizArea" class="hidden"><div style="display:flex;justify-content:space-between;margin-bottom:1rem;"><span id="waecTopicLabel" class="tag">Topic</span><span id="waecCounter">Question 1/1</span></div><div class="quiz-progress-bar"><div class="quiz-progress-fill" id="waecProgress" style="width:0%"></div></div><div class="question-card" id="waecQuestion"></div><div id="waecFeedback" class="hidden"></div><div style="display:flex;gap:0.75rem;margin-top:1rem;flex-wrap:wrap;"><button class="btn btn-primary" id="waecRevealTheoryBtn" style="display:none;">Show Marking Guide</button><button class="btn btn-primary" id="waecNextBtn" style="display:none;">Next Question →</button><button class="btn btn-secondary" id="waecBackTopics">← Topics</button></div></div>
-      <div id="waecResult" class="hidden"><div class="content-card" style="text-align:center;padding:2rem;"><div style="font-size:2.5rem;">📝</div><h2 id="waecResultTitle">Complete!</h2><div class="score-value" id="waecFinalScore">0%</div><p id="waecScoreMessage" style="margin:0.75rem 0 1.25rem;color:var(--text-muted);"></p><button class="btn btn-primary" id="waecRetryBtn">Try Again</button><button class="btn btn-secondary" id="waecBackTopics2" style="margin-left:0.5rem;">Choose Topic</button></div></div>
+      <div id="waecResult" class="hidden"><div class="content-card" style="text-align:center;padding:2rem;"><div style="font-size:2.5rem;">📝</div><h2>Complete!</h2><div class="score-value" id="waecFinalScore">0%</div><p id="waecScoreMessage" style="margin:0.75rem 0 1.25rem;color:var(--text-muted);"></p><button class="btn btn-primary" id="waecRetryBtn">Try Again</button><button class="btn btn-secondary" id="waecBackTopics2" style="margin-left:0.5rem;">Choose Topic</button></div></div>
     </section>
     <section class="page" id="page-jamb">
       <h2 class="section-title">🎯 JAMB Biology MSQ</h2>
@@ -228,6 +232,13 @@
       <div id="notesList" style="margin-top:1rem;"></div>
     </section>
     <div class="sw-banner offline" id="swOfflineBanner"><span>📡 You are offline. Cached content is still available.</span></div>
+    <div class="sw-banner install" id="installBanner" role="dialog" aria-label="Install app">
+      <span class="install-text">📱 Install Bio Hub for offline study</span>
+      <div class="install-actions">
+        <button type="button" id="installBtn">Install</button>
+        <button type="button" id="installDismissBtn" aria-label="Dismiss">Not now</button>
+      </div>
+    </div>
     <div class="sw-banner update" id="swUpdateBanner"><span>✨ A new version is available.</span><button type="button" id="swUpdateBtn" style="border:none;border-radius:8px;padding:0.4rem 0.75rem;font-weight:700;cursor:pointer;">Refresh</button></div>
   </main>
   <nav class="bottom-nav">
@@ -242,5 +253,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore-compat.js"></script>
   <script src="./app.js"></script>
   <script src="./sync.js"></script>
+  <script src="./install.js"></script>
 </body>
 </html>
