@@ -1,8 +1,8 @@
 /* Timed Exam Mode — countdown + auto-submit for WAEC/JAMB practice papers */
 (function () {
   var DEFAULTS = {
-    waec: 50 * 60, // 50 minutes
-    jamb: 40 * 60  // 40 minutes
+    waec: 50 * 60,
+    jamb: 40 * 60
   };
 
   var state = {
@@ -84,12 +84,6 @@
     }
   }
 
-  /**
-   * Start a timed session.
-   * @param {'waec'|'jamb'} exam
-   * @param {number} [year]
-   * @param {number} [seconds] override duration
-   */
   function startTimedExam(exam, year, seconds) {
     stopTimedExam(true);
     state.active = true;
@@ -105,110 +99,73 @@
       ' · timed';
     showBar(label);
 
-    // Sync page timer panel if present
-    try {
-      if (typeof timerRunning !== 'undefined') {
-        /* keep local state independent */
-      }
-    } catch (e) {}
-
     clearTick();
     state.interval = setInterval(function () {
       if (!state.active || state.submitted) return;
       state.remaining--;
       updateUi();
-      if (state.remaining <= 0) {
-        finishExam('timeout');
-      }
+      if (state.remaining <= 0) finishExam('timeout');
     }, 1000);
   }
 
   function stopTimedExam(silent) {
     clearTick();
     state.active = false;
+    state.submitted = true;
     if (!silent) hideBar();
+    else hideBar();
   }
 
   function finishExam(reason) {
-    if (state.submitted) return;
+    if (state.submitted && reason !== 'timeout') return;
+    if (state.submitted && reason === 'timeout') {
+      /* already submitted */
+    }
+    var already = state.submitted;
     state.submitted = true;
     clearTick();
     state.active = false;
 
-    var msg =
-      reason === 'timeout'
-        ? 'Time is up! Your answers have been submitted.'
-        : 'Exam submitted.';
-
-    // Show brief toast
-    showToast(msg, reason === 'timeout');
-
-    if (state.exam === 'waec') {
-      if (typeof finishWaecPaper === 'function') {
-        try {
-          finishWaecPaper();
-        } catch (e) {
-          forceWaecResult();
-        }
-      } else if (window.BioHubPastPapers) {
-        forceWaecResult();
-      } else {
-        forceWaecResult();
-      }
-    } else if (state.exam === 'jamb') {
-      forceJambResult();
+    if (!already) {
+      showToast(
+        reason === 'timeout'
+          ? 'Time is up! Your paper has been submitted.'
+          : 'Exam submitted.',
+        reason === 'timeout'
+      );
     }
 
+    if (state.exam === 'waec') {
+      if (window.BioHubPastPapers && BioHubPastPapers.finishWaec) {
+        BioHubPastPapers.finishWaec();
+      } else {
+        forceResult('waec');
+      }
+    } else if (state.exam === 'jamb') {
+      if (window.BioHubPastPapers && BioHubPastPapers.finishJamb) {
+        BioHubPastPapers.finishJamb();
+      } else {
+        forceResult('jamb');
+      }
+    }
     hideBar();
   }
 
-  function forceWaecResult() {
-    var area = document.getElementById('waecQuizArea');
-    var result = document.getElementById('waecResult');
+  function forceResult(exam) {
+    var area = document.getElementById(exam === 'jamb' ? 'jambQuizArea' : 'waecQuizArea');
+    var result = document.getElementById(exam === 'jamb' ? 'jambResult' : 'waecResult');
     if (area) area.classList.add('hidden');
     if (result) result.classList.remove('hidden');
-    if (typeof waecState !== 'undefined' && waecState) {
-      var total =
-        (waecState.questions && waecState.questions.length) ||
-        Math.max(waecState.index + 1, 1);
-      // Count only answered portion already in score
-      var pct = Math.round((waecState.score / total) * 100);
-      if (typeof setText === 'function') {
-        setText('waecFinalScore', pct + '%');
-        setText(
-          'waecScoreMessage',
-          'Timed paper: ' +
-            waecState.score +
-            ' / ' +
-            total +
-            (state.year ? ' · ' + state.year : '')
-        );
-      }
-    }
-  }
-
-  function forceJambResult() {
-    var area = document.getElementById('jambQuizArea');
-    var result = document.getElementById('jambResult');
-    if (area) area.classList.add('hidden');
-    if (result) result.classList.remove('hidden');
-    if (typeof jambState !== 'undefined' && jambState) {
-      var total =
-        (jambState.questions && jambState.questions.length) ||
-        Math.max(jambState.index + 1, 1);
-      var pct = Math.round((jambState.score / total) * 100);
-      if (typeof setText === 'function') {
-        setText('jambFinalScore', pct + '%');
-        setText(
-          'jambScoreMessage',
-          'Timed paper: ' +
-            jambState.score +
-            ' / ' +
-            total +
-            (state.year ? ' · ' + state.year : '')
-        );
-      }
-    }
+    var st = exam === 'jamb' ? window.jambState : window.waecState;
+    if (!st || typeof setText !== 'function') return;
+    var total = (st.questions && st.questions.length) || Math.max(st.index + 1, 1);
+    var pct = Math.round((st.score / total) * 100);
+    var prefix = exam === 'jamb' ? 'jamb' : 'waec';
+    setText(prefix + 'FinalScore', pct + '%');
+    setText(
+      prefix + 'ScoreMessage',
+      'Timed paper: ' + st.score + ' / ' + total + (state.year ? ' · ' + state.year : '')
+    );
   }
 
   function showToast(msg, isAlert) {
@@ -231,19 +188,6 @@
     }, 3500);
   }
 
-  /** Wrap past-paper start to always run timed */
-  function patchPastPapers() {
-    if (!window.BioHubPastPapers || BioHubPastPapers._timedPatched) return;
-    var orig = BioHubPastPapers.start;
-    if (typeof orig !== 'function') return;
-    BioHubPastPapers.start = function (exam, year) {
-      orig(exam, year);
-      startTimedExam(exam, year);
-    };
-    BioHubPastPapers._timedPatched = true;
-  }
-
-  /** Stop timer when user goes back to topics */
   function patchBackButtons() {
     ['waecBackTopics', 'waecBackTopics2', 'jambBackTopics', 'jambBackTopics2'].forEach(
       function (id) {
@@ -257,7 +201,6 @@
     );
   }
 
-  // Warn on leave during timed exam
   window.addEventListener('beforeunload', function (e) {
     if (state.active && !state.submitted) {
       e.preventDefault();
@@ -267,16 +210,13 @@
 
   function init() {
     ensureBar();
-    patchPastPapers();
     patchBackButtons();
-    // Re-patch when pastPapers loads slightly later
     var tries = 0;
     var iv = setInterval(function () {
-      patchPastPapers();
       patchBackButtons();
       tries++;
-      if (tries > 20) clearInterval(iv);
-    }, 400);
+      if (tries > 15) clearInterval(iv);
+    }, 500);
   }
 
   if (document.readyState === 'loading') {
