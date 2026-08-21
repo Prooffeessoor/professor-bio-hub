@@ -1,23 +1,18 @@
-/* Professor Bio Hub – Service Worker v9
- * Optimized Navigation Preload + cache strategy
- *
- * Navigations:
- *  1. Await preload (short) in parallel with cache lookup
- *  2. Prefer fresh preload/network when available
- *  3. Fall back to cached HTML immediately if preload is slow/fails
- *  4. Only cache status 200 basic/cors responses
+/* Professor Bio Hub – Service Worker v10
+ * Navigation Preload + background cache updates
  */
-const VERSION = 'v9';
+const VERSION = 'v10';
 const SHELL_CACHE = `bio-hub-shell-${VERSION}`;
 const DATA_CACHE = `bio-hub-data-${VERSION}`;
 const RUNTIME_CACHE = `bio-hub-runtime-${VERSION}`;
 const SYNC_TAG = 'bio-hub-sync';
+const BG_UPDATE_TAG = 'bio-hub-bg-update';
 
 const RUNTIME_MAX_ENTRIES = 32;
-/** Max wait for preload before serving cache (ms) */
 const PRELOAD_WAIT_MS = 800;
-/** Full network timeout when no usable cache (ms) */
 const NAV_TIMEOUT_MS = 2800;
+/** Stagger between background fetches (ms) to avoid bursts */
+const BG_FETCH_GAP_MS = 80;
 
 const SHELL_ASSETS = [
   './', './index.html', './app.js', './sync.js', './install.js',
@@ -31,6 +26,8 @@ const DATA_ASSETS = [
   './data/waecPracticalQuestions.js', './data/jambQuestions.js',
   './data/extraTopics.js'
 ];
+
+let bgUpdateRunning = false;
 
 function isNavigationRequest(req) {
   return (
@@ -73,12 +70,15 @@ function canCache(response) {
 }
 
 async function putInCache(cacheName, request, response) {
-  if (!canCache(response)) return;
+  if (!canCache(response)) return false;
   try {
     const cache = await caches.open(cacheName);
     await cache.put(request, response.clone());
     if (cacheName === RUNTIME_CACHE) await trimCache(cacheName, RUNTIME_MAX_ENTRIES);
-  } catch (e) {}
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 async function trimCache(cacheName, maxEntries) {
@@ -94,6 +94,10 @@ function timeoutPromise(ms) {
   return new Promise((resolve) => setTimeout(() => resolve(null), ms));
 }
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function fetchWithTimeout(request, ms) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
@@ -101,13 +105,81 @@ function fetchWithTimeout(request, ms) {
 }
 
 /**
- * Optimized navigation strategy with Navigation Preload.
- *
- * - Race: preload (capped wait) vs existing shell cache
- * - If preload wins with 200 → serve + update cache
- * - If cache wins first → serve cache, keep updating from preload/network in background
- * - If neither → network with longer timeout, then offline fallbacks
+ * Background update: re-fetch shell + data into caches without blocking UI.
+ * Returns { updated, failed } counts.
  */
+async function backgroundCacheUpdate(options) {
+  options = options || {};
+  if (bgUpdateRunning) {
+    return { updated: 0, failed: 0, skipped: true };
+  }
+  bgUpdateRunning = true;
+  let updated = 0;
+  let failed = 0;
+
+  try {
+    const shellList = options.shellOnly ? SHELL_ASSETS : SHELL_ASSETS;
+    const dataList = options.shellOnly ? [] : DATA_ASSETS;
+
+    const shell = await caches.open(SHELL_CACHE);
+    for (const url of shellList) {
+      try {
+        const res = await fetch(url, { cache: 'no-cache' });
+        if (canCache(res)) {
+          await shell.put(url, res.clone());
+          updated++;
+        } else {
+          failed++;
+        }
+      } catch (e) {
+        failed++;
+      }
+      await delay(BG_FETCH_GAP_MS);
+    }
+
+    if (dataList.length) {
+      const data = await caches.open(DATA_CACHE);
+      for (const url of dataList) {
+        try {
+          const res = await fetch(url, { cache: 'no-cache' });
+          if (canCache(res)) {
+            await data.put(url, res.clone());
+            updated++;
+          } else {
+            failed++;
+          }
+        } catch (e) {
+          failed++;
+        }
+        await delay(BG_FETCH_GAP_MS);
+      }
+    }
+
+    // Notify open pages
+    const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of clientsList) {
+      client.postMessage({
+        type: 'CACHE_UPDATED',
+        updated: updated,
+        failed: failed,
+        version: VERSION
+      });
+    }
+
+    console.log('[SW] Background cache update done', { updated, failed });
+    return { updated, failed, skipped: false };
+  } finally {
+    bgUpdateRunning = false;
+  }
+}
+
+/** Update a single request in the background (used by strategies). */
+function backgroundRefresh(request, cacheName) {
+  return fetch(request, { cache: 'no-cache' })
+    .then((res) => putInCache(cacheName, request, res))
+    .catch(() => false);
+}
+
 async function handleNavigation(event) {
   const request = event.request;
   const cache = await caches.open(SHELL_CACHE);
@@ -118,7 +190,6 @@ async function handleNavigation(event) {
     cache.match('./')
   ]).then(([a, b, c]) => a || b || c || null);
 
-  // Preload may be undefined if API unsupported or not enabled
   const preloadPromise = (async () => {
     try {
       if (!event.preloadResponse) return null;
@@ -128,7 +199,6 @@ async function handleNavigation(event) {
     }
   })();
 
-  // Don't block long on preload if we already have HTML in cache
   const preloadOrTimeout = Promise.race([
     preloadPromise,
     timeoutPromise(PRELOAD_WAIT_MS)
@@ -136,19 +206,15 @@ async function handleNavigation(event) {
 
   const [preload, cached] = await Promise.all([preloadOrTimeout, cachedPromise]);
 
-  // Fresh preload response available
   if (preload && preload.ok) {
     putInCache(SHELL_CACHE, request, preload);
-    // Also store under canonical index keys for offline match reliability
     putInCache(SHELL_CACHE, new Request('./index.html'), preload);
     return preload;
   }
 
-  // Serve cache immediately; refresh from network in background
   if (cached) {
     event.waitUntil(
       (async () => {
-        // Finish waiting for full preload if it was still in flight
         try {
           const late = await preloadPromise;
           if (late && late.ok) {
@@ -157,19 +223,12 @@ async function handleNavigation(event) {
             return;
           }
         } catch (e) {}
-        try {
-          const fresh = await fetch(request);
-          if (canCache(fresh)) {
-            await putInCache(SHELL_CACHE, request, fresh);
-            await putInCache(SHELL_CACHE, new Request('./index.html'), fresh);
-          }
-        } catch (e) {}
+        await backgroundRefresh(request, SHELL_CACHE);
       })()
     );
     return cached;
   }
 
-  // No cache: full network attempt (preload may still resolve)
   try {
     const latePreload = await preloadPromise;
     if (latePreload && latePreload.ok) {
@@ -187,7 +246,6 @@ async function handleNavigation(event) {
     }
     return response;
   } catch (err) {
-    // Last-resort offline shell
     const fallback =
       (await cache.match('./index.html')) ||
       (await cache.match('./'));
@@ -200,25 +258,21 @@ async function cacheFirst(request, cacheName) {
   const cache = await caches.open(cacheName);
   const cached = await cache.match(request);
   if (cached) {
-    fetch(request)
-      .then((res) => { if (canCache(res)) cache.put(request, res.clone()); })
-      .catch(() => {});
+    // Fire-and-forget background update
+    backgroundRefresh(request, cacheName);
     return cached;
   }
   const response = await fetch(request);
-  if (canCache(response)) await cache.put(request, response.clone());
+  if (canCache(response)) await putInCache(cacheName, request, response);
   return response;
 }
 
 async function staleWhileRevalidate(request, cacheName) {
   const cache = await caches.open(cacheName);
   const cached = await cache.match(request);
-  const networkPromise = fetch(request)
+  const networkPromise = fetch(request, { cache: 'no-cache' })
     .then(async (response) => {
-      if (canCache(response)) {
-        await cache.put(request, response.clone());
-        if (cacheName === RUNTIME_CACHE) await trimCache(cacheName, RUNTIME_MAX_ENTRIES);
-      }
+      await putInCache(cacheName, request, response);
       return response;
     })
     .catch(() => null);
@@ -252,15 +306,14 @@ self.addEventListener('activate', (event) => {
         if (self.registration.navigationPreload.setHeaderValue) {
           await self.registration.navigationPreload.setHeaderValue('bio-hub-preload');
         }
-        console.log('[SW] Navigation Preload enabled');
-      } catch (err) {
-        console.warn('[SW] Navigation Preload enable failed', err);
-      }
+      } catch (err) {}
     }
     const allow = new Set([SHELL_CACHE, DATA_CACHE, RUNTIME_CACHE]);
     const keys = await caches.keys();
     await Promise.all(keys.filter((k) => !allow.has(k)).map((k) => caches.delete(k)));
     await self.clients.claim();
+    // Quiet background refresh after takeover
+    backgroundCacheUpdate().catch(() => {});
   })());
 });
 
@@ -297,23 +350,37 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
+/* Background Sync: offline queue flush OR full cache refresh */
+self.addEventListener('sync', (event) => {
+  if (event.tag === SYNC_TAG) {
+    event.waitUntil(notifyClientsFlush());
+  }
+  if (event.tag === BG_UPDATE_TAG) {
+    event.waitUntil(backgroundCacheUpdate());
+  }
+});
+
 async function notifyClientsFlush() {
-  const clientsList = await self.clients.matchAll({
-    type: 'window',
-    includeUncontrolled: true
-  });
+  const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
   for (const client of clientsList) {
     client.postMessage({ type: 'FLUSH_SYNC_QUEUE' });
   }
   return clientsList.length;
 }
 
-self.addEventListener('sync', (event) => {
-  if (event.tag === SYNC_TAG) event.waitUntil(notifyClientsFlush());
-});
-
 self.addEventListener('message', (event) => {
   if (!event.data) return;
   if (event.data.type === 'SKIP_WAITING') self.skipWaiting();
-  if (event.data.type === 'REQUEST_SYNC') event.waitUntil(notifyClientsFlush());
+  if (event.data.type === 'REQUEST_SYNC') {
+    event.waitUntil(notifyClientsFlush());
+  }
+  if (event.data.type === 'UPDATE_CACHE') {
+    event.waitUntil(
+      backgroundCacheUpdate({ shellOnly: !!event.data.shellOnly }).then((result) => {
+        if (event.ports && event.ports[0]) {
+          event.ports[0].postMessage(result);
+        }
+      })
+    );
+  }
 });
