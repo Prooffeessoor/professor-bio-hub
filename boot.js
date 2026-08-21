@@ -6,7 +6,8 @@
     './efficiency.js',
     './cache-update.js',
     './srs.js',
-    './pastPapers.js'
+    './pastPapers.js',
+    './timedExam.js'
   ];
   function load(src) {
     return new Promise(function (resolve) {
