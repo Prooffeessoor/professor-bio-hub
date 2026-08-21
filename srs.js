@@ -8,38 +8,27 @@
   var reviewIndex = 0;
   var wired = false;
 
-  // --- SM-2 tuning ---
   var MIN_EASE = 1.3;
   var DEFAULT_EASE = 2.5;
   var MAX_INTERVAL_DAYS = 365;
-  var EASY_BONUS = 1.3;      // Easy multiplies interval after EF step
-  var HARD_FACTOR = 1.2;     // Hard: previous interval * 1.2 (not full EF)
-  var FUZZ_RATIO = 0.05;     // ±5% due-date fuzz to spread reviews
+  var EASY_BONUS = 1.3;
+  var HARD_FACTOR = 1.2;
+  var FUZZ_RATIO = 0.05;
   var DAY_MS = 24 * 60 * 60 * 1000;
-  var LEARNING_STEPS_MS = [60 * 1000, 10 * 60 * 1000]; // 1 min, 10 min
+  var LEARNING_STEPS_MS = [60 * 1000, 10 * 60 * 1000];
 
   var RATING = { again: 1, hard: 3, good: 4, easy: 5 };
 
   /**
-   * Classic SM-2 ease factor update.
    * EF' = EF + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
-   * @param {number} ef
-   * @param {number} q quality 0–5
-   * @return {number}
    */
   function updateEase(ef, q) {
     var next = ef + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02));
     if (next < MIN_EASE) next = MIN_EASE;
-    // Soft ceiling avoids runaway ease from repeated Easy
     if (next > 3.5) next = 3.5;
     return Math.round(next * 100) / 100;
   }
 
-  /**
-   * Clamp and quantize interval in whole days.
-   * @param {number} days
-   * @return {number}
-   */
   function normalizeInterval(days) {
     if (!isFinite(days) || days < 0) days = 0;
     days = Math.round(days);
@@ -48,12 +37,6 @@
     return days;
   }
 
-  /**
-   * Apply ±fuzz to a due timestamp so many cards are not due at the same second.
-   * @param {number} dueMs
-   * @param {number} intervalDays
-   * @return {number}
-   */
   function fuzzDue(dueMs, intervalDays) {
     if (intervalDays < 2) return dueMs;
     var windowMs = intervalDays * DAY_MS * FUZZ_RATIO;
@@ -62,18 +45,14 @@
   }
 
   /**
-   * Optimized SM-2 interval scheduling.
+   * Optimized SM-2 scheduling.
    *
-   * Success path (q ≥ 3):
-   *  - Graduating: 1 day, then 6 days, then I × EF
-   *  - Hard: max(1, prev × HARD_FACTOR) without advancing as fast as Good
-   *  - Easy: (I × EF × EASY_BONUS)
-   * Fail path (q < 3):
-   *  - Reset reps; learning steps 1m → 10m by lapse count
-   *
-   * @param {{ease?:number, interval?:number, repetitions?:number, lapses?:number}} state
-   * @param {number} quality 0–5
-   * @return {{ease:number, interval:number, repetitions:number, lapses:number, due:number, lastQuality:number, updatedAt:number}}
+   * | Rating | Interval behaviour                          |
+   * |--------|---------------------------------------------|
+   * | Again  | reps=0; learning step 1m then 10m         |
+   * | Hard   | prev × 1.2 (min growth)                     |
+   * | Good   | 1d → 6d → prev × EF                         |
+   * | Easy   | longer first steps; prev × EF × 1.3         |
    */
   function sm2(state, quality) {
     state = state || {};
@@ -84,62 +63,40 @@
     var q = Math.max(0, Math.min(5, Number(quality) || 0));
     var now = Date.now();
     var due = now;
+    var prevInterval = Math.max(interval, 0);
 
-    // Always update ease (SM-2 original behaviour)
     ef = updateEase(ef, q);
 
     if (q < 3) {
-      // Failed recall
       lapses += 1;
       reps = 0;
       interval = 0;
-      // Learning steps: first fail → 1 min, repeat fails → 10 min
-      var stepIndex = Math.min(lapses - 1, LEARNING_STEPS_MS.length - 1);
-      if (stepIndex < 0) stepIndex = 0;
+      var stepIndex = Math.min(Math.max(lapses - 1, 0), LEARNING_STEPS_MS.length - 1);
       due = now + LEARNING_STEPS_MS[stepIndex];
     } else {
-      // Successful recall
       if (reps === 0) {
-        // New card or relearning graduate
-        if (q === 3) {
-          // Hard on first success: still graduate but shorter
-          interval = 1;
-        } else if (q === 5) {
-          interval = 4; // Easy bonus on first pass
-        } else {
-          interval = 1;
-        }
+        // Graduate from new / relearning
+        if (q === 5) interval = 4;
+        else if (q === 3) interval = 1;
+        else interval = 1;
       } else if (reps === 1) {
-        if (q === 3) {
-          interval = normalizeInterval(Math.max(interval, 1) * HARD_FACTOR);
-        } else if (q === 5) {
-          interval = normalizeInterval(6 * EASY_BONUS);
-        } else {
-          interval = 6;
-        }
+        if (q === 3) interval = normalizeInterval(Math.max(prevInterval, 1) * HARD_FACTOR);
+        else if (q === 5) interval = normalizeInterval(6 * EASY_BONUS);
+        else interval = 6;
       } else {
-        // Review stage: I(n) = I(n-1) * EF  (with button modifiers)
-        var base = Math.max(interval, 1) * ef;
+        // Review stage
         if (q === 3) {
-          // Hard: do not use full EF growth
-          base = Math.max(interval, 1) * HARD_FACTOR;
+          // Hard: mild growth only
+          interval = normalizeInterval(Math.max(prevInterval, 1) * HARD_FACTOR);
         } else if (q === 5) {
-          base = base * EASY_BONUS;
+          interval = normalizeInterval(Math.max(prevInterval, 1) * ef * EASY_BONUS);
+        } else {
+          // Good: classic SM-2
+          interval = normalizeInterval(Math.max(prevInterval, 1) * ef);
         }
-        interval = normalizeInterval(base);
       }
 
-      // Ensure Hard never increases interval vs previous review stage
-      if (q === 3 && reps >= 2) {
-        var capped = normalizeInterval(Math.max(interval, 1));
-        var prev = Math.max(state.interval || 1, 1);
-        // Hard may grow slowly but stay ≤ Good-equivalent path
-        interval = Math.min(capped, normalizeInterval(prev * HARD_FACTOR + 1));
-        interval = normalizeInterval(Math.max(prev, interval)); // at least previous
-        // Actually Hard should be slightly longer than prev but less than Good:
-        interval = normalizeInterval(prev * HARD_FACTOR);
-      }
-
+      interval = normalizeInterval(interval);
       reps += 1;
       due = fuzzDue(now + interval * DAY_MS, interval);
     }
@@ -155,7 +112,6 @@
     };
   }
 
-  /** Human-readable next interval hint for UI (optional) */
   function previewIntervals(state) {
     state = state || { ease: DEFAULT_EASE, interval: 0, repetitions: 0, lapses: 0 };
     return {
@@ -406,12 +362,7 @@
     if (back) back.textContent = card.back;
     if (progress) {
       progress.textContent =
-        'Review ' +
-        (reviewIndex + 1) +
-        ' of ' +
-        reviewQueue.length +
-        ' · ' +
-        card.topic;
+        'Review ' + (reviewIndex + 1) + ' of ' + reviewQueue.length + ' · ' + card.topic;
     }
     var ratingEl = document.getElementById('srsRating');
     if (ratingEl) ratingEl.style.display = 'grid';
@@ -434,8 +385,6 @@
     };
     var next = sm2(prev, quality);
     setCardState(card.id, next);
-
-    console.log('[SRS]', card.id, ratingKey, next);
     reviewIndex += 1;
     showCurrent();
   }
@@ -488,10 +437,7 @@
   }
 
   function init() {
-    function tryWire() {
-      if (document.getElementById('page-flashcards')) wire();
-    }
-    tryWire();
+    if (document.getElementById('page-flashcards')) wire();
     var origEnsure = window.ensurePageInit;
     if (typeof origEnsure === 'function' && !origEnsure._srsWrapped) {
       window.ensurePageInit = function (pageId) {
