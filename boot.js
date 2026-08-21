@@ -4,7 +4,8 @@
     './nav.js',
     './search.js',
     './efficiency.js',
-    './cache-update.js'
+    './cache-update.js',
+    './srs.js'
   ];
   function load(src) {
     return new Promise(function (resolve) {
