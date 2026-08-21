@@ -1,18 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
-  <rect width="192" height="192" rx="36" fill="#0f766e"/>
-  <g fill="#ffffff" transform="translate(96,92) scale(0.36)">
-    <ellipse cx="0" cy="-118" rx="72" ry="12"/>
-    <path d="M-58,-118 L-48,-195 Q0,-215 48,-195 L58,-118 Z"/>
-    <rect x="-68" y="-128" width="136" height="18" rx="4"/>
-    <rect x="-52" y="-78" width="42" height="28" rx="4" fill="none" stroke="#fff" stroke-width="8"/>
-    <rect x="10" y="-78" width="42" height="28" rx="4" fill="none" stroke="#fff" stroke-width="8"/>
-    <path d="M-10,-64 H10" stroke="#fff" stroke-width="6" fill="none"/>
-    <path d="M0,-28 Q-28,-42 -48,-22 Q-28,-8 0,-18 Q28,-8 48,-22 Q28,-42 0,-28 Z"/>
-    <path d="M-38,-18 Q-48,20 -30,70 Q-10,95 0,100 Q10,95 30,70 Q48,20 38,-18 Q20,5 0,8 Q-20,5 -38,-18 Z"/>
-    <path d="M-8,88 L-48,72 L-48,108 Z"/>
-    <path d="M8,88 L48,72 L48,108 Z"/>
-    <rect x="-10" y="82" width="20" height="16" rx="3"/>
-    <path d="M-90,115 Q-70,95 -20,100 L-12,200 L-100,200 Q-110,160 -90,115 Z"/>
-    <path d="M90,115 Q70,95 20,100 L12,200 L100,200 Q110,160 90,115 Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192" role="img" aria-label="Professor Bio Hub">
+  <title>Professor Bio Hub</title>
+  <!-- Full-bleed brand tile; scales sharply on 1x–3x retina -->
+  <rect width="192" height="192" rx="36" ry="36" fill="#0f766e"/>
+  <g fill="#ffffff" fill-rule="evenodd" transform="translate(96 94) scale(0.34)">
+    <!-- Top hat crown + brim -->
+    <path d="M-50-200c0-8 22-18 50-18s50 10 50 18l-8 78H-42l-8-78z"/>
+    <ellipse cx="0" cy="-118" rx="78" ry="14"/>
+    <rect x="-74" y="-132" width="148" height="18" rx="5"/>
+    <!-- Glasses (stroke stays crisp when scaled) -->
+    <g fill="none" stroke="#ffffff" stroke-width="9" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke">
+      <rect x="-56" y="-82" width="46" height="32" rx="6"/>
+      <rect x="10" y="-82" width="46" height="32" rx="6"/>
+      <path d="M-10-66h20M-56-66h-12M56-66h12"/>
+    </g>
+    <!-- Mustache -->
+    <path d="M0-30c-18-16-42-12-54 4 16 10 36 6 54-2 18 8 38 12 54 2-12-16-36-20-54-4z"/>
+    <!-- Beard -->
+    <path d="M-40-16c-12 28-4 72 12 98 10 16 22 28 28 32 6-4 18-16 28-32 16-26 24-70 12-98-14 18-32 24-40 26-8-2-26-8-40-26z"/>
+    <!-- Bow tie -->
+    <path d="M-8 92l-48-22v48l48-22zM8 92l48-22v48l-48-22z"/>
+    <rect x="-12" y="86" width="24" height="18" rx="4"/>
+    <!-- Shoulders -->
+    <path d="M-95 118c18-22 52-28 78-20l-8 110H-108c-6-28 2-68 13-90zM95 118c-18-22-52-28-78-20l8 110H108c6-28-2-68-13-90z"/>
   </g>
 </svg>
