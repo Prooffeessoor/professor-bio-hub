@@ -1,16 +1,22 @@
-/* Professor Bio Hub – Service Worker v8
- * Includes Navigation Preload for faster document loads
+/* Professor Bio Hub – Service Worker v9
+ * Optimized Navigation Preload + cache strategy
  *
- * Navigation Preload starts the network request for HTML in parallel
- * with service worker startup, then we use event.preloadResponse.
+ * Navigations:
+ *  1. Await preload (short) in parallel with cache lookup
+ *  2. Prefer fresh preload/network when available
+ *  3. Fall back to cached HTML immediately if preload is slow/fails
+ *  4. Only cache status 200 basic/cors responses
  */
-const VERSION = 'v8';
+const VERSION = 'v9';
 const SHELL_CACHE = `bio-hub-shell-${VERSION}`;
 const DATA_CACHE = `bio-hub-data-${VERSION}`;
 const RUNTIME_CACHE = `bio-hub-runtime-${VERSION}`;
 const SYNC_TAG = 'bio-hub-sync';
 
 const RUNTIME_MAX_ENTRIES = 32;
+/** Max wait for preload before serving cache (ms) */
+const PRELOAD_WAIT_MS = 800;
+/** Full network timeout when no usable cache (ms) */
 const NAV_TIMEOUT_MS = 2800;
 
 const SHELL_ASSETS = [
@@ -84,51 +90,110 @@ async function trimCache(cacheName, maxEntries) {
   }
 }
 
+function timeoutPromise(ms) {
+  return new Promise((resolve) => setTimeout(() => resolve(null), ms));
+}
+
 function fetchWithTimeout(request, ms) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
   return fetch(request, { signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
-async function networkFirst(request, cacheName, fallbackUrl, timeoutMs) {
-  const cache = await caches.open(cacheName);
-  try {
-    const response = timeoutMs
-      ? await fetchWithTimeout(request, timeoutMs)
-      : await fetch(request);
-    if (canCache(response)) await cache.put(request, response.clone());
-    return response;
-  } catch (err) {
-    const cached =
-      (await cache.match(request)) ||
-      (fallbackUrl ? await cache.match(fallbackUrl) : null) ||
-      (await cache.match('./index.html')) ||
-      (await cache.match('./'));
-    if (cached) return cached;
-    throw err;
-  }
-}
-
 /**
- * Handle navigations with Navigation Preload when available.
- * Flow: use preloadResponse if ready → else network-first with timeout → cache.
+ * Optimized navigation strategy with Navigation Preload.
+ *
+ * - Race: preload (capped wait) vs existing shell cache
+ * - If preload wins with 200 → serve + update cache
+ * - If cache wins first → serve cache, keep updating from preload/network in background
+ * - If neither → network with longer timeout, then offline fallbacks
  */
 async function handleNavigation(event) {
   const request = event.request;
+  const cache = await caches.open(SHELL_CACHE);
 
-  // 1) Prefer the preloaded response (started in parallel with SW boot)
-  try {
-    const preload = await event.preloadResponse;
-    if (preload) {
-      putInCache(SHELL_CACHE, request, preload);
-      return preload;
+  const cachedPromise = Promise.all([
+    cache.match(request),
+    cache.match('./index.html'),
+    cache.match('./')
+  ]).then(([a, b, c]) => a || b || c || null);
+
+  // Preload may be undefined if API unsupported or not enabled
+  const preloadPromise = (async () => {
+    try {
+      if (!event.preloadResponse) return null;
+      return await event.preloadResponse;
+    } catch (e) {
+      return null;
     }
-  } catch (e) {
-    console.warn('[SW] preloadResponse failed', e);
+  })();
+
+  // Don't block long on preload if we already have HTML in cache
+  const preloadOrTimeout = Promise.race([
+    preloadPromise,
+    timeoutPromise(PRELOAD_WAIT_MS)
+  ]);
+
+  const [preload, cached] = await Promise.all([preloadOrTimeout, cachedPromise]);
+
+  // Fresh preload response available
+  if (preload && preload.ok) {
+    putInCache(SHELL_CACHE, request, preload);
+    // Also store under canonical index keys for offline match reliability
+    putInCache(SHELL_CACHE, new Request('./index.html'), preload);
+    return preload;
   }
 
-  // 2) Normal network-first with timeout + offline fallback
-  return networkFirst(request, SHELL_CACHE, './index.html', NAV_TIMEOUT_MS);
+  // Serve cache immediately; refresh from network in background
+  if (cached) {
+    event.waitUntil(
+      (async () => {
+        // Finish waiting for full preload if it was still in flight
+        try {
+          const late = await preloadPromise;
+          if (late && late.ok) {
+            await putInCache(SHELL_CACHE, request, late);
+            await putInCache(SHELL_CACHE, new Request('./index.html'), late);
+            return;
+          }
+        } catch (e) {}
+        try {
+          const fresh = await fetch(request);
+          if (canCache(fresh)) {
+            await putInCache(SHELL_CACHE, request, fresh);
+            await putInCache(SHELL_CACHE, new Request('./index.html'), fresh);
+          }
+        } catch (e) {}
+      })()
+    );
+    return cached;
+  }
+
+  // No cache: full network attempt (preload may still resolve)
+  try {
+    const latePreload = await preloadPromise;
+    if (latePreload && latePreload.ok) {
+      putInCache(SHELL_CACHE, request, latePreload);
+      putInCache(SHELL_CACHE, new Request('./index.html'), latePreload);
+      return latePreload;
+    }
+  } catch (e) {}
+
+  try {
+    const response = await fetchWithTimeout(request, NAV_TIMEOUT_MS);
+    if (canCache(response)) {
+      putInCache(SHELL_CACHE, request, response);
+      putInCache(SHELL_CACHE, new Request('./index.html'), response);
+    }
+    return response;
+  } catch (err) {
+    // Last-resort offline shell
+    const fallback =
+      (await cache.match('./index.html')) ||
+      (await cache.match('./'));
+    if (fallback) return fallback;
+    throw err;
+  }
 }
 
 async function cacheFirst(request, cacheName) {
@@ -165,11 +230,15 @@ self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const shell = await caches.open(SHELL_CACHE);
     await Promise.all(
-      SHELL_ASSETS.map((url) => shell.add(url).catch((e) => console.warn('[SW] shell skip', url, e)))
+      SHELL_ASSETS.map((url) =>
+        shell.add(url).catch((e) => console.warn('[SW] shell skip', url, e))
+      )
     );
     const data = await caches.open(DATA_CACHE);
     await Promise.all(
-      DATA_ASSETS.map((url) => data.add(url).catch((e) => console.warn('[SW] data skip', url, e)))
+      DATA_ASSETS.map((url) =>
+        data.add(url).catch((e) => console.warn('[SW] data skip', url, e))
+      )
     );
     await self.skipWaiting();
   })());
@@ -177,11 +246,9 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
-    // Enable Navigation Preload (Chrome / Edge / supported browsers)
     if (self.registration.navigationPreload) {
       try {
         await self.registration.navigationPreload.enable();
-        // Optional header so the server could vary response; GitHub Pages ignores it safely
         if (self.registration.navigationPreload.setHeaderValue) {
           await self.registration.navigationPreload.setHeaderValue('bio-hub-preload');
         }
@@ -190,7 +257,6 @@ self.addEventListener('activate', (event) => {
         console.warn('[SW] Navigation Preload enable failed', err);
       }
     }
-
     const allow = new Set([SHELL_CACHE, DATA_CACHE, RUNTIME_CACHE]);
     const keys = await caches.keys();
     await Promise.all(keys.filter((k) => !allow.has(k)).map((k) => caches.delete(k)));
@@ -206,7 +272,6 @@ self.addEventListener('fetch', (event) => {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
   if (request.headers.get('range')) return;
 
-  // Navigations → Navigation Preload path
   if (isNavigationRequest(request)) {
     event.respondWith(handleNavigation(event));
     return;
@@ -233,7 +298,10 @@ self.addEventListener('fetch', (event) => {
 });
 
 async function notifyClientsFlush() {
-  const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  const clientsList = await self.clients.matchAll({
+    type: 'window',
+    includeUncontrolled: true
+  });
   for (const client of clientsList) {
     client.postMessage({ type: 'FLUSH_SYNC_QUEUE' });
   }
