@@ -5,7 +5,8 @@
     './search.js',
     './efficiency.js',
     './cache-update.js',
-    './srs.js'
+    './srs.js',
+    './pastPapers.js'
   ];
   function load(src) {
     return new Promise(function (resolve) {
