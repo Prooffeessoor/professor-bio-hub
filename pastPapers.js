@@ -6,7 +6,6 @@
   var YEARS = [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025];
   var WAEC_PAPER_SIZE = 40;
   var JAMB_PAPER_SIZE = 40;
-  var wired = false;
 
   function mulberry32(a) {
     return function () {
@@ -36,7 +35,6 @@
         []
       );
     }
-    // WAEC objective bank
     return (
       (typeof waecQuestions !== 'undefined' && waecQuestions) ||
       (window.BIO_DATA && window.BIO_DATA.waecQuestions) ||
@@ -44,18 +42,11 @@
     );
   }
 
-  /**
-   * Build a deterministic mock paper for a given year.
-   * @param {'waec'|'jamb'} exam
-   * @param {number} year
-   * @param {number} size
-   */
   function buildPaper(exam, year, size) {
     var bank = getBank(exam);
     if (!bank.length) return [];
     var rnd = mulberry32(year * 10007 + (exam === 'jamb' ? 17 : 31));
     var pool = shuffle(bank, rnd);
-    // Prefer topic spread: take round-robin by topic when possible
     var byTopic = {};
     pool.forEach(function (q) {
       var t = q.topic || 'general';
@@ -73,7 +64,6 @@
       idx++;
       if (idx > size * topics.length + 10) break;
     }
-    // Pad from remaining pool if needed
     if (paper.length < size) {
       var used = {};
       paper.forEach(function (q) {
@@ -91,7 +81,7 @@
   }
 
   function ensureDisclaimer(container) {
-    if (container.querySelector('.past-paper-note')) return;
+    if (!container || container.querySelector('.past-paper-note')) return;
     var note = document.createElement('p');
     note.className = 'past-paper-note';
     note.style.cssText =
@@ -118,8 +108,8 @@
       '<h3 class="section-title" style="font-size:1rem;margin-bottom:0.65rem;">📅 Past-paper style practice</h3>' +
       '<p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.65rem;">' +
       (exam === 'waec'
-        ? 'Mock WAEC objective paper · ' + WAEC_PAPER_SIZE + ' questions'
-        : 'Mock JAMB Biology paper · ' + JAMB_PAPER_SIZE + ' questions') +
+        ? 'Timed mock WAEC · ' + WAEC_PAPER_SIZE + ' Qs · 50 min'
+        : 'Timed mock JAMB · ' + JAMB_PAPER_SIZE + ' Qs · 40 min') +
       '</p>';
 
     var grid = document.createElement('div');
@@ -132,7 +122,7 @@
       card.style.cssText =
         'cursor:pointer;border:1px solid var(--border);font-family:inherit;color:inherit;';
       card.innerHTML =
-        '<div class="feature-icon" style="font-size:1.1rem;">📝</div><h3 style="font-size:0.95rem;">' +
+        '<div class="feature-icon" style="font-size:1.1rem;">⏱️</div><h3 style="font-size:0.95rem;">' +
         y +
         '</h3>';
       card.addEventListener('click', function () {
@@ -142,6 +132,46 @@
     });
     wrap.appendChild(grid);
     host.insertBefore(wrap, host.firstChild);
+  }
+
+  function escapeHtml(t) {
+    var d = document.createElement('div');
+    d.textContent = t || '';
+    return d.innerHTML;
+  }
+
+  function finishWaecPaper() {
+    var area = document.getElementById('waecQuizArea');
+    var result = document.getElementById('waecResult');
+    if (area) area.classList.add('hidden');
+    if (result) result.classList.remove('hidden');
+    var total = (waecState.questions && waecState.questions.length) || 1;
+    var pct = Math.round((waecState.score / total) * 100);
+    if (typeof setText === 'function') {
+      setText('waecFinalScore', pct + '%');
+      setText(
+        'waecScoreMessage',
+        'You scored ' + waecState.score + ' / ' + total + ' on this practice paper.'
+      );
+    }
+    if (window.BioHubTimedExam) BioHubTimedExam.stop(true);
+  }
+
+  function finishJambPaper() {
+    var area = document.getElementById('jambQuizArea');
+    var result = document.getElementById('jambResult');
+    if (area) area.classList.add('hidden');
+    if (result) result.classList.remove('hidden');
+    var total = (jambState.questions && jambState.questions.length) || 1;
+    var pct = Math.round((jambState.score / total) * 100);
+    if (typeof setText === 'function') {
+      setText('jambFinalScore', pct + '%');
+      setText(
+        'jambScoreMessage',
+        'You scored ' + jambState.score + ' / ' + total + ' on this practice paper.'
+      );
+    }
+    if (window.BioHubTimedExam) BioHubTimedExam.stop(true);
   }
 
   function startPastPaper(exam, year) {
@@ -156,203 +186,55 @@
     }
 
     if (exam === 'waec') {
-      // Reuse WAEC MSQ engine
       if (typeof waecMode !== 'undefined') {
         try {
           waecMode = 'msq';
         } catch (e) {}
       }
-      if (typeof waecState !== 'undefined') {
-        waecState = {
-          topic: 'paper-' + year,
-          index: 0,
-          score: 0,
-          answered: false,
-          questions: paper
-        };
-      }
+      waecState = {
+        topic: 'paper-' + year,
+        index: 0,
+        score: 0,
+        answered: false,
+        questions: paper
+      };
       var picker = document.getElementById('waecTopicPicker');
       var area = document.getElementById('waecQuizArea');
       var result = document.getElementById('waecResult');
       if (picker) picker.classList.add('hidden');
       if (result) result.classList.add('hidden');
       if (area) area.classList.remove('hidden');
-      if (typeof setText === 'function') {
-        setText('waecTopicLabel', 'WAEC-style ' + year);
-      } else {
-        var lab = document.getElementById('waecTopicLabel');
-        if (lab) lab.textContent = 'WAEC-style ' + year;
-      }
+      if (typeof setText === 'function') setText('waecTopicLabel', 'WAEC-style ' + year);
       if (typeof renderWaecQuestion === 'function') renderWaecQuestion();
-      else renderGenericWaec(paper);
     } else {
-      if (typeof jambState !== 'undefined') {
-        jambState = {
-          topic: 'paper-' + year,
-          index: 0,
-          score: 0,
-          answered: false,
-          questions: paper
-        };
-      }
+      jambState = {
+        topic: 'paper-' + year,
+        index: 0,
+        score: 0,
+        answered: false,
+        questions: paper
+      };
       var jp = document.getElementById('jambTopicPicker');
       var ja = document.getElementById('jambQuizArea');
       var jr = document.getElementById('jambResult');
       if (jp) jp.classList.add('hidden');
       if (jr) jr.classList.add('hidden');
       if (ja) ja.classList.remove('hidden');
-      if (typeof setText === 'function') {
-        setText('jambTopicLabel', 'JAMB-style ' + year);
-      } else {
-        var jlab = document.getElementById('jambTopicLabel');
-        if (jlab) jlab.textContent = 'JAMB-style ' + year;
-      }
+      if (typeof setText === 'function') setText('jambTopicLabel', 'JAMB-style ' + year);
       if (typeof renderJambQuestion === 'function') renderJambQuestion();
-      else renderGenericJamb(paper);
     }
 
-    // Optional: start exam timer if available
-    if (typeof setTimerMinutes === 'function') {
-      try {
-        setTimerMinutes(exam === 'jamb' ? 40 : 50);
-      } catch (e) {}
+    if (window.BioHubTimedExam) {
+      BioHubTimedExam.start(exam, year);
     }
   }
 
-  /** Fallback renderer if app internals differ */
-  function renderGenericWaec(paper) {
-    var state =
-      typeof waecState !== 'undefined'
-        ? waecState
-        : { index: 0, questions: paper, score: 0, answered: false };
-    var q = state.questions[state.index];
-    if (!q) return;
-    var box = document.getElementById('waecQuestion');
-    var counter = document.getElementById('waecCounter');
-    var prog = document.getElementById('waecProgress');
-    if (counter) {
-      counter.textContent =
-        'Question ' + (state.index + 1) + '/' + state.questions.length;
-    }
-    if (prog) {
-      prog.style.width =
-        (state.index / state.questions.length) * 100 + '%';
-    }
-    if (!box) return;
-    var letters = ['A', 'B', 'C', 'D'];
-    box.innerHTML =
-      '<p style="font-weight:600;margin-bottom:1rem;">' +
-      escapeHtml(q.q) +
-      '</p>' +
-      (q.options || [])
-        .map(function (opt, i) {
-          return (
-            '<div class="option" data-i="' +
-            i +
-            '"><span class="option-letter">' +
-            letters[i] +
-            '</span><span>' +
-            escapeHtml(opt) +
-            '</span></div>'
-          );
-        })
-        .join('');
-    box.querySelectorAll('.option').forEach(function (el) {
-      el.addEventListener('click', function () {
-        if (state.answered) return;
-        state.answered = true;
-        var i = parseInt(el.getAttribute('data-i'), 10);
-        var correct = q.answer;
-        el.classList.add(i === correct ? 'correct' : 'wrong');
-        if (i === correct) state.score++;
-        box.querySelectorAll('.option').forEach(function (o, j) {
-          if (j === correct) o.classList.add('correct');
-        });
-        var next = document.getElementById('waecNextBtn');
-        if (next) next.style.display = '';
-      });
-    });
-  }
-
-  function renderGenericJamb(paper) {
-    var state =
-      typeof jambState !== 'undefined'
-        ? jambState
-        : { index: 0, questions: paper, score: 0, answered: false };
-    var q = state.questions[state.index];
-    if (!q) return;
-    var box = document.getElementById('jambQuestion');
-    var counter = document.getElementById('jambCounter');
-    var prog = document.getElementById('jambProgress');
-    if (counter) {
-      counter.textContent =
-        'Question ' + (state.index + 1) + '/' + state.questions.length;
-    }
-    if (prog) {
-      prog.style.width =
-        (state.index / state.questions.length) * 100 + '%';
-    }
-    if (!box) return;
-    var letters = ['A', 'B', 'C', 'D'];
-    box.innerHTML =
-      '<p style="font-weight:600;margin-bottom:1rem;">' +
-      escapeHtml(q.q) +
-      '</p>' +
-      (q.options || [])
-        .map(function (opt, i) {
-          return (
-            '<div class="option" data-i="' +
-            i +
-            '"><span class="option-letter">' +
-            letters[i] +
-            '</span><span>' +
-            escapeHtml(opt) +
-            '</span></div>'
-          );
-        })
-        .join('');
-    box.querySelectorAll('.option').forEach(function (el) {
-      el.addEventListener('click', function () {
-        if (state.answered) return;
-        state.answered = true;
-        var i = parseInt(el.getAttribute('data-i'), 10);
-        var correct = q.answer;
-        el.classList.add(i === correct ? 'correct' : 'wrong');
-        if (i === correct) state.score++;
-        box.querySelectorAll('.option').forEach(function (o, j) {
-          if (j === correct) o.classList.add('correct');
-        });
-        var next = document.getElementById('jambNextBtn');
-        if (next) next.style.display = '';
-      });
-    });
-  }
-
-  function escapeHtml(t) {
-    var d = document.createElement('div');
-    d.textContent = t || '';
-    return d.innerHTML;
-  }
-
-  /**
-   * Patch startWaecTopic / engines to honour pre-built question lists
-   * when topic starts with paper-
-   */
   function patchEngines() {
-    if (typeof startWaecTopic === 'function' && !startWaecTopic._pp) {
-      var _sw = startWaecTopic;
-      window.startWaecTopic = function (topic) {
-        if (String(topic).indexOf('paper-') === 0) return;
-        return _sw(topic);
-      };
-      window.startWaecTopic._pp = true;
-    }
-
-    // Make renderWaecQuestion use waecState.questions when present
     if (typeof renderWaecQuestion === 'function' && !renderWaecQuestion._pp) {
       var _rw = renderWaecQuestion;
       window.renderWaecQuestion = function () {
         if (
+          typeof waecState !== 'undefined' &&
           waecState &&
           Array.isArray(waecState.questions) &&
           waecState.questions.length &&
@@ -360,20 +242,10 @@
         ) {
           var qs = waecState.questions;
           var q = qs[waecState.index];
-          if (!q) {
-            if (typeof showWaecResult === 'function') return showWaecResult();
-            return finishWaecPaper();
-          }
+          if (!q) return finishWaecPaper();
           waecState.answered = false;
-          setText(
-            'waecCounter',
-            'Question ' + (waecState.index + 1) + '/' + qs.length
-          );
-          setStyle(
-            'waecProgress',
-            'width',
-            (waecState.index / qs.length) * 100 + '%'
-          );
+          setText('waecCounter', 'Question ' + (waecState.index + 1) + '/' + qs.length);
+          setStyle('waecProgress', 'width', (waecState.index / qs.length) * 100 + '%');
           var nextBtn = document.getElementById('waecNextBtn');
           if (nextBtn) nextBtn.style.display = 'none';
           var reveal = document.getElementById('waecRevealTheoryBtn');
@@ -418,8 +290,7 @@
                 var f = document.getElementById('waecFeedback');
                 if (f) {
                   f.classList.remove('hidden');
-                  f.className =
-                    'feedback ' + (i === correct ? 'correct' : 'wrong');
+                  f.className = 'feedback ' + (i === correct ? 'correct' : 'wrong');
                   f.textContent = q.explanation;
                 }
               }
@@ -437,14 +308,13 @@
       var _nw = nextWaecQuestion;
       window.nextWaecQuestion = function () {
         if (
+          typeof waecState !== 'undefined' &&
           waecState &&
           Array.isArray(waecState.questions) &&
           String(waecState.topic || '').indexOf('paper-') === 0
         ) {
           waecState.index++;
-          if (waecState.index >= waecState.questions.length) {
-            return finishWaecPaper();
-          }
+          if (waecState.index >= waecState.questions.length) return finishWaecPaper();
           return renderWaecQuestion();
         }
         return _nw();
@@ -456,6 +326,7 @@
       var _rj = renderJambQuestion;
       window.renderJambQuestion = function () {
         if (
+          typeof jambState !== 'undefined' &&
           jambState &&
           Array.isArray(jambState.questions) &&
           jambState.questions.length &&
@@ -465,15 +336,8 @@
           var q = qs[jambState.index];
           if (!q) return finishJambPaper();
           jambState.answered = false;
-          setText(
-            'jambCounter',
-            'Question ' + (jambState.index + 1) + '/' + qs.length
-          );
-          setStyle(
-            'jambProgress',
-            'width',
-            (jambState.index / qs.length) * 100 + '%'
-          );
+          setText('jambCounter', 'Question ' + (jambState.index + 1) + '/' + qs.length);
+          setStyle('jambProgress', 'width', (jambState.index / qs.length) * 100 + '%');
           var nextBtn = document.getElementById('jambNextBtn');
           if (nextBtn) nextBtn.style.display = 'none';
           var fb = document.getElementById('jambFeedback');
@@ -526,56 +390,19 @@
       var _nj = nextJambQuestion;
       window.nextJambQuestion = function () {
         if (
+          typeof jambState !== 'undefined' &&
           jambState &&
           Array.isArray(jambState.questions) &&
           String(jambState.topic || '').indexOf('paper-') === 0
         ) {
           jambState.index++;
-          if (jambState.index >= jambState.questions.length) {
-            return finishJambPaper();
-          }
+          if (jambState.index >= jambState.questions.length) return finishJambPaper();
           return renderJambQuestion();
         }
         return _nj();
       };
       window.nextJambQuestion._pp = true;
     }
-  }
-
-  function finishWaecPaper() {
-    var area = document.getElementById('waecQuizArea');
-    var result = document.getElementById('waecResult');
-    if (area) area.classList.add('hidden');
-    if (result) result.classList.remove('hidden');
-    var total = (waecState.questions && waecState.questions.length) || 1;
-    var pct = Math.round((waecState.score / total) * 100);
-    setText('waecFinalScore', pct + '%');
-    setText(
-      'waecScoreMessage',
-      'You scored ' +
-        waecState.score +
-        ' / ' +
-        total +
-        ' on this practice paper.'
-    );
-  }
-
-  function finishJambPaper() {
-    var area = document.getElementById('jambQuizArea');
-    var result = document.getElementById('jambResult');
-    if (area) area.classList.add('hidden');
-    if (result) result.classList.remove('hidden');
-    var total = (jambState.questions && jambState.questions.length) || 1;
-    var pct = Math.round((jambState.score / total) * 100);
-    setText('jambFinalScore', pct + '%');
-    setText(
-      'jambScoreMessage',
-      'You scored ' +
-        jambState.score +
-        ' / ' +
-        total +
-        ' on this practice paper.'
-    );
   }
 
   function mount() {
@@ -590,15 +417,12 @@
     if (typeof orig === 'function' && !orig._ppWrapped) {
       window.ensurePageInit = function (pageId) {
         return Promise.resolve(orig(pageId)).then(function (r) {
-          if (pageId === 'waec' || pageId === 'jamb') {
-            setTimeout(mount, 50);
-          }
+          if (pageId === 'waec' || pageId === 'jamb') setTimeout(mount, 50);
           return r;
         });
       };
       window.ensurePageInit._ppWrapped = true;
     }
-    // Retry after exam bank loads
     setTimeout(mount, 2500);
   }
 
@@ -611,6 +435,8 @@
   window.BioHubPastPapers = {
     buildPaper: buildPaper,
     start: startPastPaper,
+    finishWaec: finishWaecPaper,
+    finishJamb: finishJambPaper,
     years: YEARS.slice()
   };
 })();
