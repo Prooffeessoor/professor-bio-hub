@@ -1,7 +1,7 @@
-/* Professor Bio Hub – Service Worker v10
- * Navigation Preload + background cache updates
+/* Professor Bio Hub – Service Worker v11
+ * Navigation Preload + background cache updates + SRS shell
  */
-const VERSION = 'v10';
+const VERSION = 'v11';
 const SHELL_CACHE = `bio-hub-shell-${VERSION}`;
 const DATA_CACHE = `bio-hub-data-${VERSION}`;
 const RUNTIME_CACHE = `bio-hub-runtime-${VERSION}`;
@@ -11,12 +11,12 @@ const BG_UPDATE_TAG = 'bio-hub-bg-update';
 const RUNTIME_MAX_ENTRIES = 32;
 const PRELOAD_WAIT_MS = 800;
 const NAV_TIMEOUT_MS = 2800;
-/** Stagger between background fetches (ms) to avoid bursts */
 const BG_FETCH_GAP_MS = 80;
 
 const SHELL_ASSETS = [
   './', './index.html', './app.js', './sync.js', './install.js',
   './logo-inject.js', './boot.js', './nav.js', './search.js', './efficiency.js',
+  './cache-update.js', './srs.js',
   './manifest.webmanifest', './icon-192.svg', './icon-512.svg'
 ];
 
@@ -48,7 +48,7 @@ function isShellAsset(url) {
   if (url.origin !== self.location.origin) return false;
   const p = url.pathname;
   return (
-    /\/(app|sync|install|logo-inject|boot|nav|search|efficiency)\.js$/.test(p) ||
+    /\/(app|sync|install|logo-inject|boot|nav|search|efficiency|cache-update|srs)\.js$/.test(p) ||
     p.endsWith('/manifest.webmanifest') ||
     p.endsWith('/icon-192.svg') ||
     p.endsWith('/icon-512.svg')
@@ -104,10 +104,6 @@ function fetchWithTimeout(request, ms) {
   return fetch(request, { signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
-/**
- * Background update: re-fetch shell + data into caches without blocking UI.
- * Returns { updated, failed } counts.
- */
 async function backgroundCacheUpdate(options) {
   options = options || {};
   if (bgUpdateRunning) {
@@ -118,7 +114,7 @@ async function backgroundCacheUpdate(options) {
   let failed = 0;
 
   try {
-    const shellList = options.shellOnly ? SHELL_ASSETS : SHELL_ASSETS;
+    const shellList = SHELL_ASSETS;
     const dataList = options.shellOnly ? [] : DATA_ASSETS;
 
     const shell = await caches.open(SHELL_CACHE);
@@ -155,7 +151,6 @@ async function backgroundCacheUpdate(options) {
       }
     }
 
-    // Notify open pages
     const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const client of clientsList) {
       client.postMessage({
@@ -173,7 +168,6 @@ async function backgroundCacheUpdate(options) {
   }
 }
 
-/** Update a single request in the background (used by strategies). */
 function backgroundRefresh(request, cacheName) {
   return fetch(request, { cache: 'no-cache' })
     .then((res) => putInCache(cacheName, request, res))
@@ -258,7 +252,6 @@ async function cacheFirst(request, cacheName) {
   const cache = await caches.open(cacheName);
   const cached = await cache.match(request);
   if (cached) {
-    // Fire-and-forget background update
     backgroundRefresh(request, cacheName);
     return cached;
   }
@@ -312,7 +305,6 @@ self.addEventListener('activate', (event) => {
     const keys = await caches.keys();
     await Promise.all(keys.filter((k) => !allow.has(k)).map((k) => caches.delete(k)));
     await self.clients.claim();
-    // Quiet background refresh after takeover
     backgroundCacheUpdate().catch(() => {});
   })());
 });
@@ -350,7 +342,6 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-/* Background Sync: offline queue flush OR full cache refresh */
 self.addEventListener('sync', (event) => {
   if (event.tag === SYNC_TAG) {
     event.waitUntil(notifyClientsFlush());
