@@ -1,15 +1,15 @@
 /* Professor Bio Hub – Service Worker
- * Caching strategies + Background Sync
+ * Caching + Background Sync + Install assets
  */
-const VERSION = 'v5';
+const VERSION = 'v6';
 const SHELL_CACHE = `bio-hub-shell-${VERSION}`;
 const DATA_CACHE = `bio-hub-data-${VERSION}`;
 const RUNTIME_CACHE = `bio-hub-runtime-${VERSION}`;
 const SYNC_TAG = 'bio-hub-sync';
 
 const SHELL_ASSETS = [
-  './', './index.html', './app.js', './sync.js', './manifest.webmanifest',
-  './icon-192.svg', './icon-512.svg'
+  './', './index.html', './app.js', './sync.js', './install.js',
+  './manifest.webmanifest', './icon-192.svg', './icon-512.svg'
 ];
 
 const DATA_ASSETS = [
@@ -32,8 +32,9 @@ function isDataAsset(url) {
 function isShellAsset(url) {
   if (url.origin !== self.location.origin) return false;
   const p = url.pathname;
-  return p.endsWith('/app.js') || p.endsWith('/sync.js') || p.endsWith('/manifest.webmanifest') ||
-    p.endsWith('/icon-192.svg') || p.endsWith('/icon-512.svg') || p.endsWith('/sw.js');
+  return p.endsWith('/app.js') || p.endsWith('/sync.js') || p.endsWith('/install.js') ||
+    p.endsWith('/manifest.webmanifest') || p.endsWith('/icon-192.svg') ||
+    p.endsWith('/icon-512.svg') || p.endsWith('/sw.js');
 }
 
 function isThirdPartyCacheable(url) {
@@ -137,19 +138,12 @@ self.addEventListener('fetch', (event) => {
 
 self.addEventListener('sync', (event) => {
   if (event.tag === SYNC_TAG) {
-    console.log('[SW] Background sync fired:', event.tag);
-    event.waitUntil(
-      notifyClientsFlush().then((n) => {
-        console.log('[SW] Notified', n, 'client(s) to flush sync queue');
-      })
-    );
+    event.waitUntil(notifyClientsFlush());
   }
 });
 
 self.addEventListener('message', (event) => {
   if (!event.data) return;
   if (event.data.type === 'SKIP_WAITING') self.skipWaiting();
-  if (event.data.type === 'REQUEST_SYNC') {
-    event.waitUntil(notifyClientsFlush());
-  }
+  if (event.data.type === 'REQUEST_SYNC') event.waitUntil(notifyClientsFlush());
 });
