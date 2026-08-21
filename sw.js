@@ -1,14 +1,14 @@
 /* Professor Bio Hub – Service Worker
  * Caching strategies + Background Sync
  */
-const VERSION = 'v4';
+const VERSION = 'v5';
 const SHELL_CACHE = `bio-hub-shell-${VERSION}`;
 const DATA_CACHE = `bio-hub-data-${VERSION}`;
 const RUNTIME_CACHE = `bio-hub-runtime-${VERSION}`;
 const SYNC_TAG = 'bio-hub-sync';
 
 const SHELL_ASSETS = [
-  './', './index.html', './app.js', './manifest.webmanifest',
+  './', './index.html', './app.js', './sync.js', './manifest.webmanifest',
   './icon-192.svg', './icon-512.svg'
 ];
 
@@ -32,7 +32,7 @@ function isDataAsset(url) {
 function isShellAsset(url) {
   if (url.origin !== self.location.origin) return false;
   const p = url.pathname;
-  return p.endsWith('/app.js') || p.endsWith('/manifest.webmanifest') ||
+  return p.endsWith('/app.js') || p.endsWith('/sync.js') || p.endsWith('/manifest.webmanifest') ||
     p.endsWith('/icon-192.svg') || p.endsWith('/icon-512.svg') || p.endsWith('/sw.js');
 }
 
@@ -136,7 +136,7 @@ self.addEventListener('fetch', (event) => {
 });
 
 self.addEventListener('sync', (event) => {
-  if (event.tag === 'bio-hub-sync') {
+  if (event.tag === SYNC_TAG) {
     console.log('[SW] Background sync fired:', event.tag);
     event.waitUntil(
       notifyClientsFlush().then((n) => {
