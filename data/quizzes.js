@@ -1,1 +1,159 @@
-see_file
+window.BIO_DATA = window.BIO_DATA || {};
+window.BIO_DATA.quizzes = {
+  cell: [
+    { q: "Which organelle is the powerhouse of the cell?", options: ["Nucleus", "Mitochondrion", "Ribosome", "Golgi"], answer: 1, explanation: "Mitochondria produce ATP." },
+    { q: "Plant cells differ from animal cells by having:", options: ["Mitochondria", "Cell wall and chloroplasts", "Nucleus", "Ribosomes"], answer: 1, explanation: "Cell wall and chloroplasts." },
+    { q: "Site of protein synthesis:", options: ["Lysosome", "Ribosome", "Vacuole", "Centriole"], answer: 1, explanation: "Ribosomes." },
+    { q: "Controls entry and exit of substances:", options: ["Cell wall", "Cytoplasm", "Cell membrane", "Nucleus"], answer: 2, explanation: "Selectively permeable membrane." },
+    { q: "Prokaryotic cells lack:", options: ["Cytoplasm", "Ribosomes", "True nucleus", "Cell membrane"], answer: 2, explanation: "No membrane-bound nucleus." },
+    { q: "Who first used the term cell?", options: ["Leeuwenhoek", "Hooke", "Schleiden", "Virchow"], answer: 1, explanation: "Robert Hooke, 1665." },
+    { q: "Cell theory developed by:", options: ["Hooke only", "Schleiden, Schwann, Virchow", "Mendel", "Darwin"], answer: 1, explanation: "Classical cell theory." },
+    { q: "Organelle with chlorophyll:", options: ["Mitochondrion", "Chloroplast", "Golgi", "Lysosome"], answer: 1, explanation: "Photosynthesis." },
+    { q: "Large permanent vacuole typical of:", options: ["Animal cells", "Plant cells", "Bacteria only", "All cells"], answer: 1, explanation: "Plant cells." },
+    { q: "Lysosomes are called suicide bags because they:", options: ["Make energy", "Contain digestive enzymes", "Store food", "Make protein"], answer: 1, explanation: "Hydrolytic enzymes." }
+  ],
+  genetics: [
+    { q: "Observable characteristics are the:", options: ["Genotype", "Phenotype", "Genome", "Karyotype"], answer: 1, explanation: "Phenotype." },
+    { q: "Monohybrid heterozygote cross phenotypic ratio:", options: ["1:1", "1:2:1", "3:1", "9:3:3:1"], answer: 2, explanation: "3:1." },
+    { q: "Base pairing with adenine in DNA:", options: ["Guanine", "Cytosine", "Thymine", "Uracil"], answer: 2, explanation: "A–T." },
+    { q: "Two identical alleles means:", options: ["Heterozygous", "Homozygous", "Hemizygous", "Dominant"], answer: 1, explanation: "Homozygous." },
+    { q: "Continuous variation is usually:", options: ["One gene", "Polygenic", "Only environment", "Sex-linked"], answer: 1, explanation: "Many genes." },
+    { q: "Father of genetics:", options: ["Darwin", "Mendel", "Watson", "Hooke"], answer: 1, explanation: "Gregor Mendel." },
+    { q: "Permanent DNA change is a:", options: ["Variation", "Mutation", "Adaptation", "Selection"], answer: 1, explanation: "Mutation." },
+    { q: "Incomplete dominance gives:", options: ["Only dominant", "Only recessive", "Intermediate phenotype", "Both fully"], answer: 2, explanation: "e.g. pink flowers." },
+    { q: "Most sex-linked genes are on:", options: ["Y", "X chromosome", "Autosomes", "Mitochondria"], answer: 1, explanation: "X-linked." },
+    { q: "Dihybrid phenotypic ratio:", options: ["3:1", "1:1:1:1", "9:3:3:1", "1:2:1"], answer: 2, explanation: "9:3:3:1." }
+  ],
+  nervous: [
+    { q: "Basic unit of nervous system:", options: ["Nephron", "Neurone", "Alveolus", "Villus"], answer: 1, explanation: "Neurone." },
+    { q: "Receives impulses:", options: ["Axon", "Dendrites", "Myelin", "Node"], answer: 1, explanation: "Dendrites." },
+    { q: "Junction between neurones:", options: ["Node", "Synapse", "Hillock", "Receptor"], answer: 1, explanation: "Synapse." },
+    { q: "Rapid automatic response:", options: ["Tropism", "Reflex action", "Voluntary", "Habit"], answer: 1, explanation: "Reflex." },
+    { q: "Controls balance:", options: ["Cerebrum", "Cerebellum", "Medulla", "Hypothalamus"], answer: 1, explanation: "Cerebellum." },
+    { q: "Links nervous and endocrine:", options: ["Cerebrum", "Cerebellum", "Hypothalamus", "Medulla"], answer: 2, explanation: "Hypothalamus." },
+    { q: "Reflex arc sequence starts with:", options: ["Effector", "Receptor", "Brain", "Muscle"], answer: 1, explanation: "Receptor → … → effector." },
+    { q: "Light-sensitive layer of eye:", options: ["Cornea", "Iris", "Retina", "Lens"], answer: 2, explanation: "Retina." },
+    { q: "Myelin sheath mainly:", options: ["Makes transmitter", "Speeds impulse", "Stores energy", "Detects stimuli"], answer: 1, explanation: "Saltatory conduction." },
+    { q: "Nerve impulses vs hormones:", options: ["Slower", "Faster and shorter-lasting", "Same", "Always slower"], answer: 1, explanation: "Nervous is faster." }
+  ],
+  endocrine: [
+    { q: "Hormones secreted by:", options: ["Ducted glands", "Ductless glands", "Only liver", "Only brain"], answer: 1, explanation: "Endocrine glands." },
+    { q: "Master gland:", options: ["Thyroid", "Pituitary", "Adrenal", "Pancreas"], answer: 1, explanation: "Pituitary." },
+    { q: "Lowers blood glucose:", options: ["Glucagon", "Insulin", "Adrenaline", "Thyroxine"], answer: 1, explanation: "Insulin." },
+    { q: "Adrenaline from:", options: ["Thyroid", "Pituitary", "Adrenal gland", "Pancreas"], answer: 2, explanation: "Adrenal medulla." },
+    { q: "GH under-secretion in child:", options: ["Gigantism", "Dwarfism", "Acromegaly", "Goitre"], answer: 1, explanation: "Dwarfism." },
+    { q: "Regulates metabolic rate:", options: ["Insulin", "Thyroxine", "ADH", "Oestrogen"], answer: 1, explanation: "Thyroxine." },
+    { q: "ADH acts on:", options: ["Liver", "Kidney tubules", "Heart", "Lungs"], answer: 1, explanation: "Water reabsorption." },
+    { q: "Links nervous and endocrine:", options: ["Cerebellum", "Medulla", "Hypothalamus", "Cerebrum"], answer: 2, explanation: "Hypothalamus." },
+    { q: "Over thyroxine can cause:", options: ["Myxoedema", "Cretinism", "Graves’ disease", "Diabetes"], answer: 2, explanation: "Hyperthyroidism." },
+    { q: "Hormonal coordination is:", options: ["Faster", "Slower and longer-lasting", "Identical to nervous", "Only electrical"], answer: 1, explanation: "Slower, longer." }
+  ],
+  homeostasis: [
+    { q: "Homeostasis is:", options: ["External constancy", "Constant internal environment", "Only hormones", "Only nerves"], answer: 1, explanation: "Internal stability." },
+    { q: "Most control uses:", options: ["Positive feedback", "Negative feedback", "No feedback", "Only nerves"], answer: 1, explanation: "Negative feedback." },
+    { q: "Temperature control centre:", options: ["Cerebellum", "Hypothalamus", "Medulla", "Thyroid"], answer: 1, explanation: "Hypothalamus." },
+    { q: "Too hot response:", options: ["Shiver, vasoconstrict", "Sweat, vasodilate", "Raise hairs", "More ADH"], answer: 1, explanation: "Heat loss." },
+    { q: "Insulin released when glucose is:", options: ["Too low", "Too high", "Normal", "Absent"], answer: 1, explanation: "Lowers glucose." },
+    { q: "Glucagon released when glucose is:", options: ["Too high", "Too low", "Normal", "Zero"], answer: 1, explanation: "Raises glucose." },
+    { q: "ADH when blood is:", options: ["Too dilute", "Too concentrated", "Low glucose", "High O₂"], answer: 1, explanation: "More water kept." },
+    { q: "Lack of insulin causes:", options: ["Diabetes insipidus", "Diabetes mellitus", "Goitre", "Acromegaly"], answer: 1, explanation: "Diabetes mellitus." },
+    { q: "Vasoconstriction helps when:", options: ["Too hot", "Too cold", "Exercising", "Digesting"], answer: 1, explanation: "Reduces heat loss." },
+    { q: "Not controlled by homeostasis:", options: ["Blood glucose", "Body temperature", "Hair colour", "Water content"], answer: 2, explanation: "Genetic trait." }
+  ],
+  respiration: [
+    { q: "Respiration is:", options: ["Breathing only", "Energy release from food in cells", "Only gas exchange", "Photosynthesis"], answer: 1, explanation: "Cellular ATP release." },
+    { q: "Aerobic respiration needs:", options: ["No oxygen", "Oxygen", "Only water", "Nitrogen"], answer: 1, explanation: "With oxygen." },
+    { q: "ATP from aerobic respiration per glucose:", options: ["2", "4", "36–38", "100"], answer: 2, explanation: "High yield." },
+    { q: "Anaerobic in muscle produces:", options: ["Ethanol", "Lactic acid", "Oxygen", "Starch"], answer: 1, explanation: "Lactic acid." },
+    { q: "Anaerobic in yeast produces:", options: ["Lactic acid", "Ethanol and CO₂", "Oxygen", "Protein"], answer: 1, explanation: "Fermentation." },
+    { q: "Krebs cycle location:", options: ["Cytoplasm", "Mitochondria", "Nucleus", "Ribosome"], answer: 1, explanation: "Mitochondria." },
+    { q: "Glycolysis location:", options: ["Mitochondria", "Cytoplasm", "Chloroplast", "Nucleus"], answer: 1, explanation: "Cytoplasm." },
+    { q: "Aerobic equation:", options: ["Glucose → lactic acid", "Glucose + O₂ → CO₂ + H₂O + energy", "CO₂ + H₂O → glucose", "Protein → urea"], answer: 1, explanation: "Complete oxidation." },
+    { q: "Oxygen debt after:", options: ["Aerobic only", "Anaerobic exercise", "Sleep", "Eating"], answer: 1, explanation: "Clear lactic acid." },
+    { q: "Most energy from glucose by:", options: ["Anaerobic muscle", "Anaerobic yeast", "Aerobic respiration", "Glycolysis alone"], answer: 2, explanation: "Aerobic." }
+  ],
+  excretion: [
+    { q: "Excretion removes:", options: ["Undigested food", "Metabolic wastes", "Sweat only", "Faeces only"], answer: 1, explanation: "Not egestion." },
+    { q: "Main nitrogenous waste in urine:", options: ["Ammonia", "Urea", "Uric acid only", "Amino acids"], answer: 1, explanation: "Urea." },
+    { q: "Organ that forms urea:", options: ["Kidney", "Liver", "Lung", "Skin"], answer: 1, explanation: "Deamination." },
+    { q: "Kidney functional unit:", options: ["Neurone", "Nephron", "Alveolus", "Villus"], answer: 1, explanation: "Nephron." },
+    { q: "Ultrafiltration at:", options: ["Collecting duct", "Glomerulus", "Loop only", "Ureter"], answer: 1, explanation: "Glomerulus." },
+    { q: "Glucose reabsorbed in:", options: ["Glomerulus", "Proximal tubule", "Collecting duct only", "Bladder"], answer: 1, explanation: "Selective reabsorption." },
+    { q: "ADH increases:", options: ["Glucose in urine", "Water reabsorption", "Sweat only", "Breathing"], answer: 1, explanation: "More water kept." },
+    { q: "Lungs excrete:", options: ["Urea", "CO₂ and water vapour", "Bile", "Salts only"], answer: 1, explanation: "Breathing." },
+    { q: "Egestion removes:", options: ["Urea", "Undigested food", "CO₂", "Sweat"], answer: 1, explanation: "Faeces." },
+    { q: "Not an excretory organ:", options: ["Kidney", "Lung", "Skin", "Small intestine"], answer: 3, explanation: "Digestion/absorption." }
+  ],
+  coordination: [
+    { q: "Two main coordination systems:", options: ["Digestive & respiratory", "Nervous & endocrine", "Skeletal & muscular", "Excretory & reproductive"], answer: 1, explanation: "Nervous and hormonal." },
+    { q: "Faster system:", options: ["Hormonal", "Nervous", "Same", "Neither"], answer: 1, explanation: "Nervous." },
+    { q: "Hormones travel via:", options: ["Nerves", "Bloodstream", "Lymph only", "Gut"], answer: 1, explanation: "Blood." },
+    { q: "Hypothalamus links:", options: ["Liver & kidney", "Nervous & endocrine", "Heart & lungs", "Bone & muscle"], answer: 1, explanation: "Both systems." },
+    { q: "Reflex action is:", options: ["Slow conscious", "Rapid automatic", "Always learned", "Only hormonal"], answer: 1, explanation: "Automatic." },
+    { q: "Endocrine glands are:", options: ["Ducted", "Ductless", "Brain only", "Skin only"], answer: 1, explanation: "Ductless." },
+    { q: "Longer-lasting response:", options: ["Nerve impulse", "Hormone effect", "Identical", "Neither"], answer: 1, explanation: "Hormones." },
+    { q: "CNS is:", options: ["All nerves", "Brain and spinal cord", "Brain only", "Sense organs only"], answer: 1, explanation: "CNS." },
+    { q: "Adrenaline is:", options: ["Only nervous", "A hormone", "Digestion only", "Excretion only"], answer: 1, explanation: "Endocrine." },
+    { q: "Coordination allows:", options: ["Ignoring stimuli", "Detecting stimuli and responding", "Stopping metabolism", "Only heat production"], answer: 1, explanation: "Appropriate responses." }
+  ],
+  growth: [
+    { q: "Growth is:", options: ["Temporary size increase", "Permanent increase in size and dry mass", "Only division", "Only eating"], answer: 1, explanation: "Permanent increase." },
+    { q: "Mitosis produces:", options: ["Four different cells", "Two identical cells", "Gametes only", "Bacteria only"], answer: 1, explanation: "Growth and repair." },
+    { q: "Mitosis order:", options: ["Anaphase first", "Prophase–metaphase–anaphase–telophase", "Telophase first", "Metaphase only"], answer: 1, explanation: "PMAT." },
+    { q: "Meiosis produces:", options: ["Two diploid cells", "Four haploid gametes", "Only body cells", "Only spores"], answer: 1, explanation: "Gametes." },
+    { q: "Plant growth mainly at:", options: ["All cells", "Meristems", "Leaves only", "Flowers only"], answer: 1, explanation: "Meristems." },
+    { q: "Phototropism responds to:", options: ["Gravity", "Light", "Water", "Touch"], answer: 1, explanation: "Light." },
+    { q: "Auxins are:", options: ["Animal hormones", "Plant growth hormones", "Enzymes", "Vitamins"], answer: 1, explanation: "Plant hormones." },
+    { q: "Cytokinesis is:", options: ["Nuclear division", "Cytoplasm division", "DNA replication", "Crossing over"], answer: 1, explanation: "Cytoplasm splits." },
+    { q: "Human growth hormone from:", options: ["Insulin only", "Pituitary (GH)", "ADH only", "Glucagon only"], answer: 1, explanation: "Anterior pituitary." },
+    { q: "Differentiation is:", options: ["Cells becoming specialised", "Cells dying", "Only mitosis", "Only meiosis"], answer: 0, explanation: "Specialisation." }
+  ],
+  sense_organs: [
+    { q: "Light-sensitive eye layer:", options: ["Cornea", "Iris", "Retina", "Sclera"], answer: 2, explanation: "Retina." },
+    { q: "Accommodation is:", options: ["Colour only", "Focus near and far", "Tears", "Closing eye"], answer: 1, explanation: "Lens shape." },
+    { q: "Myopia corrected with:", options: ["Convex", "Concave", "Cylindrical only", "None"], answer: 1, explanation: "Concave lens." },
+    { q: "Hearing part of ear:", options: ["Semi-circular canals", "Cochlea", "Pinna only", "Eustachian only"], answer: 1, explanation: "Cochlea." },
+    { q: "Semi-circular canals for:", options: ["Hearing only", "Balance", "Smell", "Taste"], answer: 1, explanation: "Balance." },
+    { q: "Ossicles in:", options: ["Outer ear", "Middle ear", "Inner ear only", "Eye"], answer: 1, explanation: "Middle ear." },
+    { q: "Rods best in:", options: ["Bright colour", "Dim light", "Water only", "Colour darkness"], answer: 1, explanation: "Dim light." },
+    { q: "Iris controls:", options: ["Lens only", "Pupil size", "Cornea thickness", "Eyeball length"], answer: 1, explanation: "Light entry." },
+    { q: "Skin detects:", options: ["Pressure only", "Touch, pressure, pain, temperature", "Light only", "Sound only"], answer: 1, explanation: "Several stimuli." },
+    { q: "Optic nerve from:", options: ["Ear", "Retina to brain", "Skin only", "Tongue"], answer: 1, explanation: "Vision pathway." }
+  ],
+  skeleton: [
+    { q: "Not a skeleton function:", options: ["Support", "Protection", "Blood cell production", "Digestive enzymes"], answer: 3, explanation: "No digestive enzymes." },
+    { q: "Human skeleton type:", options: ["Exoskeleton", "Endoskeleton", "Hydrostatic", "None"], answer: 1, explanation: "Endoskeleton." },
+    { q: "Ball-and-socket example:", options: ["Elbow", "Knee", "Shoulder or hip", "Skull"], answer: 2, explanation: "Shoulder/hip." },
+    { q: "Hinge example:", options: ["Shoulder", "Hip", "Elbow or knee", "Neck only"], answer: 2, explanation: "Elbow/knee." },
+    { q: "Tendons connect:", options: ["Bone to bone", "Muscle to bone", "Nerve to muscle", "Skin to bone"], answer: 1, explanation: "Muscle to bone." },
+    { q: "Ligaments connect:", options: ["Muscle to muscle", "Muscle to bone", "Bone to bone", "Nerve to bone"], answer: 2, explanation: "Bone to bone." },
+    { q: "Biceps and triceps are:", options: ["Bones", "Antagonistic muscles", "Sense organs", "Hormones"], answer: 1, explanation: "Antagonistic pair." },
+    { q: "Synovial fluid:", options: ["Makes blood", "Lubricates joints", "Digests food", "Carries O₂"], answer: 1, explanation: "Lubrication." },
+    { q: "Blood cells made in:", options: ["Liver only", "Bone marrow", "Kidneys only", "Skin"], answer: 1, explanation: "Marrow." },
+    { q: "Cartilage at joints:", options: ["Makes hormones", "Reduces friction", "Makes blood", "Stores fat only"], answer: 1, explanation: "Smooth surface." }
+  ],
+  microorganisms: [
+    { q: "Malaria transmitted by:", options: ["Tsetse", "Female Anopheles", "Housefly only", "Water fleas"], answer: 1, explanation: "Anopheles mosquito." },
+    { q: "Antibiotics work on:", options: ["All viruses", "Many bacteria", "All fungi only", "Malaria only"], answer: 1, explanation: "Bacteria, not viruses." },
+    { q: "Vaccination gives:", options: ["Natural passive", "Artificial active", "No immunity", "Pain relief only"], answer: 1, explanation: "Artificial active." },
+    { q: "Rhizobium helps by:", options: ["Causing wilt", "Fixing nitrogen", "Eating roots", "Making viruses"], answer: 1, explanation: "N-fixation." },
+    { q: "Viral disease:", options: ["TB", "Cholera", "Influenza", "Ringworm"], answer: 2, explanation: "Influenza." },
+    { q: "Ringworm caused by:", options: ["Virus", "Bacterium", "Fungus", "Protozoan"], answer: 2, explanation: "Fungus." },
+    { q: "Useful microbe activity:", options: ["Cholera", "Yoghurt and antibiotics", "Crop destruction only", "Only decay of living tissue"], answer: 1, explanation: "Food and medicine." },
+    { q: "HIV attacks:", options: ["Red cells", "Immune white cells", "Bone only", "Liver only"], answer: 1, explanation: "Immunity." },
+    { q: "Cholera spread by:", options: ["Mosquitoes", "Contaminated water/food", "Air only", "Bites only"], answer: 1, explanation: "Faecal-oral." },
+    { q: "Decomposers:", options: ["Only cause disease", "Recycle nutrients", "Photosynthesise", "Only fix CO₂ to protein"], answer: 1, explanation: "Nutrient cycling." }
+  ],
+  blood: [
+    { q: "Oxygen carried mainly by:", options: ["Plasma only", "Platelets", "Haemoglobin in red cells", "White cells"], answer: 2, explanation: "Haemoglobin." },
+    { q: "Universal donor:", options: ["A", "B", "AB", "O"], answer: 3, explanation: "Group O." },
+    { q: "Platelets important for:", options: ["Oxygen", "Viruses only", "Clotting", "Bile"], answer: 2, explanation: "Clotting." },
+    { q: "Phagocytes:", options: ["Carry hormones", "Engulf pathogens", "Store fat", "Make urine"], answer: 1, explanation: "Engulf." },
+    { q: "Immunity after measles:", options: ["Artificial passive", "Natural active", "Artificial active", "Natural passive only"], answer: 1, explanation: "Natural active." },
+    { q: "Plasma is about:", options: ["10%", "55%", "90%", "1%"], answer: 1, explanation: "~55%." },
+    { q: "Universal recipient:", options: ["O", "A", "B", "AB"], answer: 3, explanation: "Group AB." },
+    { q: "Lymphocytes mainly:", options: ["Carry oxygen", "Make antibodies", "Clot only", "Carry CO₂ only"], answer: 1, explanation: "Antibodies." },
+    { q: "Vaccination is:", options: ["Natural passive", "Artificial active", "No effect", "Only passive forever"], answer: 1, explanation: "Artificial active." },
+    { q: "Cell fragments in blood:", options: ["Red cells", "White cells", "Platelets", "Plasma proteins"], answer: 2, explanation: "Platelets." }
+  ]
+};
